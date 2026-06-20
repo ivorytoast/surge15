@@ -1,61 +1,78 @@
-//
-//  ContentView.swift
-//  surge15
-//
-//  Created by Anthony Hamill on 6/20/26.
-//
-
 import SwiftUI
 import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @Query(sort: \Route.createdAt, order: .reverse) private var routes: [Route]
+    @State private var showingCreateRoute = false
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+        NavigationStack {
+            Group {
+                if routes.isEmpty {
+                    ContentUnavailableView {
+                        Label("No Routes Yet", systemImage: "figure.run")
+                    } description: {
+                        Text("Create your first loop. Walk or run it once so the app learns its shape, then come back here to train on it.")
+                    } actions: {
+                        Button {
+                            showingCreateRoute = true
+                        } label: {
+                            Label("Create Route", systemImage: "plus")
+                                .font(.headline)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                } else {
+                    List {
+                        ForEach(routes) { route in
+                            NavigationLink(value: route) {
+                                routeRow(route)
+                            }
+                        }
+                        .onDelete(perform: deleteRoutes)
                     }
                 }
-                .onDelete(perform: deleteItems)
             }
+            .navigationTitle("Routes")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showingCreateRoute = true
+                    } label: {
+                        Label("Create Route", systemImage: "plus")
                     }
                 }
             }
-        } detail: {
-            Text("Select an item")
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+            .navigationDestination(for: Route.self) { route in
+                RouteDetailView(route: route)
             }
+            .sheet(isPresented: $showingCreateRoute) {
+                CreateRouteView()
+            }
+        }
+    }
+
+    private func routeRow(_ route: Route) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(route.name).font(.headline)
+            HStack(spacing: 8) {
+                Label(Formatters.distance(route.distanceMeters), systemImage: "ruler")
+                Label("\(route.sessions.count) sessions", systemImage: "figure.run")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    private func deleteRoutes(_ offsets: IndexSet) {
+        for index in offsets {
+            modelContext.delete(routes[index])
         }
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+        .modelContainer(for: Route.self, inMemory: true)
 }

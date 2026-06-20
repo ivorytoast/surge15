@@ -6,6 +6,15 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		956D4B1A2FE737E80024B101 /* LocationTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B192FE737E80024B101 /* LocationTracker.swift */; };
+		956D4B1E2FE73FFF0024B101 /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B1D2FE73FFF0024B101 /* Formatters.swift */; };
+		956D4B202FE740190024B101 /* CreateRouteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B1F2FE740190024B101 /* CreateRouteView.swift */; };
+		956D4B222FE7402F0024B101 /* RouteDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B212FE7402F0024B101 /* RouteDetailView.swift */; };
+		956D4B242FE7404B0024B101 /* SessionRecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B232FE7404B0024B101 /* SessionRecordingView.swift */; };
+		956D4B262FE7405C0024B101 /* SessionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B252FE7405C0024B101 /* SessionDetailView.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		956D4AFD2FE736240024B101 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +36,12 @@
 		956D4AED2FE736230024B101 /* surge15.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = surge15.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		956D4AFC2FE736240024B101 /* surge15Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = surge15Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		956D4B062FE736240024B101 /* surge15UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = surge15UITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		956D4B192FE737E80024B101 /* LocationTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationTracker.swift; sourceTree = "<group>"; };
+		956D4B1D2FE73FFF0024B101 /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatters.swift; sourceTree = "<group>"; };
+		956D4B1F2FE740190024B101 /* CreateRouteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateRouteView.swift; sourceTree = "<group>"; };
+		956D4B212FE7402F0024B101 /* RouteDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteDetailView.swift; sourceTree = "<group>"; };
+		956D4B232FE7404B0024B101 /* SessionRecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRecordingView.swift; sourceTree = "<group>"; };
+		956D4B252FE7405C0024B101 /* SessionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDetailView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -79,6 +94,12 @@
 				956D4AFF2FE736240024B101 /* surge15Tests */,
 				956D4B092FE736240024B101 /* surge15UITests */,
 				956D4AEE2FE736230024B101 /* Products */,
+				956D4B192FE737E80024B101 /* LocationTracker.swift */,
+				956D4B1D2FE73FFF0024B101 /* Formatters.swift */,
+				956D4B1F2FE740190024B101 /* CreateRouteView.swift */,
+				956D4B212FE7402F0024B101 /* RouteDetailView.swift */,
+				956D4B232FE7404B0024B101 /* SessionRecordingView.swift */,
+				956D4B252FE7405C0024B101 /* SessionDetailView.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -236,6 +257,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				956D4B1E2FE73FFF0024B101 /* Formatters.swift in Sources */,
+				956D4B1A2FE737E80024B101 /* LocationTracker.swift in Sources */,
+				956D4B222FE7402F0024B101 /* RouteDetailView.swift in Sources */,
+				956D4B262FE7405C0024B101 /* SessionDetailView.swift in Sources */,
+				956D4B202FE740190024B101 /* CreateRouteView.swift in Sources */,
+				956D4B242FE7404B0024B101 /* SessionRecordingView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -400,6 +427,7 @@
 				DEVELOPMENT_TEAM = CV6V8EV5NQ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "surge15 needs your location to record your run routes.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -432,6 +460,7 @@
 				DEVELOPMENT_TEAM = CV6V8EV5NQ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "surge15 needs your location to record your run routes.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
