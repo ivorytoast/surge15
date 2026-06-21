@@ -2,8 +2,9 @@
 //  CreateRouteView.swift
 //  surge15
 //
-//  One-time setup: walk a loop to define a Route template.
-//  Live map shows the walked path; tapping "Mark Turnaround" drops a green pin.
+//  Full-screen map: blue polyline traces your path, green pins drop at each
+//  direction tap. The Record / Stop control lives in the nav bar; the L / U / R
+//  direction pad floats over the bottom of the map while recording.
 //
 
 import SwiftUI
@@ -20,15 +21,11 @@ struct CreateRouteView: View {
 
     @State private var isRecording = false
     /// Initially true so the overlay covers the screen the instant the view loads.
-    /// Flipped false after a short delay in `onAppear` so the GPS has time to settle.
     @State private var isAcquiringGPS = true
     @State private var recordingStartIndex = 0
 
-    private let acquiringDelaySeconds: Double = 2.5
-
-    /// Cumulative recorded distance at the moment the user tapped "Mark Turnaround".
     @State private var segmentBoundaries: [Double] = []
-    /// Coordinates corresponding to each segment boundary, for map pin display.
+    @State private var segmentDirections: [SegmentDirection] = []
     @State private var turnaroundCoordinates: [CLLocationCoordinate2D] = []
 
     @State private var showingSavePrompt = false
@@ -36,27 +33,25 @@ struct CreateRouteView: View {
     @State private var routeName = ""
 
     private let minimumDistanceMeters: Double = 10
+    private let acquiringDelaySeconds: Double = 2.5
 
     var body: some View {
         NavigationStack {
             ZStack {
-                VStack(spacing: 12) {
-                    mapView
-                        .frame(minHeight: 320, maxHeight: .infinity)
+                mapView
+                    .ignoresSafeArea(edges: .bottom)
 
-                    if !turnaroundCoordinates.isEmpty {
+                VStack(spacing: 0) {
+                    Spacer()
+                    if !segmentBoundaries.isEmpty {
                         turnaroundPills
+                            .padding(.bottom, 10)
                     }
-
                     if isRecording {
-                        markTurnaroundButton
+                        directionRow
                     }
-
-                    recordButton
-
-                    authorizationFootnote
                 }
-                .padding()
+                .padding(.bottom, 22)
 
                 if isAcquiringGPS {
                     acquiringOverlay
@@ -72,6 +67,9 @@ struct CreateRouteView: View {
                         dismiss()
                     }
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    recordButton
+                }
             }
             .alert("Name Your Route", isPresented: $showingSavePrompt) {
                 TextField("Backyard 1k", text: $routeName)
@@ -83,14 +81,13 @@ struct CreateRouteView: View {
             .alert("Route Too Short", isPresented: $showingTooShortAlert) {
                 Button("OK", role: .cancel) { }
             } message: {
-                Text("A route must be at least \(Int(minimumDistanceMeters)) m. You captured \(Formatters.distance(currentDistance)). Tap Start to try again.")
+                Text("A route must be at least \(Int(minimumDistanceMeters)) m. You captured \(Formatters.distance(currentDistance)). Tap Record to try again.")
             }
             .onAppear {
                 tracker.requestAuthorization()
                 if !tracker.isRecording {
                     tracker.start()
                 }
-                // Let the GPS settle for a couple seconds before showing UI to the user.
                 Task { @MainActor in
                     try? await Task.sleep(for: .seconds(acquiringDelaySeconds))
                     withAnimation(.easeOut(duration: 0.3)) {
@@ -114,8 +111,9 @@ struct CreateRouteView: View {
             }
 
             ForEach(Array(turnaroundCoordinates.enumerated()), id: \.offset) { idx, coord in
-                Annotation("T\(idx + 1)", coordinate: coord) {
-                    turnaroundPin
+                let dir = segmentDirections.indices.contains(idx) ? segmentDirections[idx] : .around
+                Annotation("\(idx + 1)", coordinate: coord) {
+                    pin(direction: dir)
                 }
             }
 
@@ -126,10 +124,10 @@ struct CreateRouteView: View {
             MapUserLocationButton()
             MapCompass()
         }
-        .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(alignment: .topLeading) {
             distancePill
-                .padding(12)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
         }
     }
 
@@ -143,74 +141,103 @@ struct CreateRouteView: View {
             .background(Color.black.opacity(0.72), in: Capsule())
     }
 
-    private var turnaroundPin: some View {
+    private func pin(direction: SegmentDirection) -> some View {
         ZStack {
             Circle()
                 .fill(.white)
                 .frame(width: 30, height: 30)
                 .shadow(radius: 2)
-            Image(systemName: "arrow.uturn.backward")
+            Image(systemName: direction.padIcon)
                 .foregroundStyle(.green)
-                .font(.system(size: 15, weight: .heavy))
+                .font(.system(size: 14, weight: .heavy))
         }
     }
+
+    // MARK: - Overlays
 
     private var turnaroundPills: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(Array(turnaroundCoordinates.enumerated()), id: \.offset) { idx, _ in
+                ForEach(0..<segmentBoundaries.count, id: \.self) { idx in
+                    let dir = segmentDirections.indices.contains(idx) ? segmentDirections[idx] : .around
                     HStack(spacing: 4) {
-                        Image(systemName: "arrow.uturn.backward")
+                        Image(systemName: dir.padIcon)
                             .font(.caption2.weight(.heavy))
-                        Text("T\(idx + 1)")
+                        Text("\(idx + 1)")
                             .font(.caption.bold())
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(Color.green.opacity(0.2), in: Capsule())
-                    .foregroundStyle(.green)
+                    .background(Color.black.opacity(0.65), in: Capsule())
+                    .foregroundStyle(.white)
                 }
             }
-            .padding(.horizontal, 4)
+            .padding(.horizontal, 20)
         }
     }
 
-    private var markTurnaroundButton: some View {
+    private var directionRow: some View {
+        HStack(spacing: 18) {
+            directionButton(.left)
+            directionButton(.around)
+            directionButton(.right)
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 14)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(
+            Capsule().strokeBorder(Color.white.opacity(0.15), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
+    }
+
+    private func directionButton(_ dir: SegmentDirection) -> some View {
         Button {
-            markTurnaround()
+            markBoundary(direction: dir)
         } label: {
-            Label("Mark Turnaround", systemImage: "arrow.uturn.backward.circle.fill")
-                .font(.headline)
+            Image(systemName: dir.padIcon)
+                .font(.system(size: 24, weight: .heavy))
                 .foregroundStyle(.white)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 12)
-                .background(Color.orange, in: Capsule())
+                .frame(width: 56, height: 56)
+                .background(Color.orange, in: Circle())
         }
         .buttonStyle(.plain)
-        .disabled(!canMarkTurnaround)
+        .disabled(!canMarkBoundary)
+        .opacity(canMarkBoundary ? 1 : 0.5)
     }
+
+    // MARK: - Toolbar record button
 
     private var recordButton: some View {
         Button {
-            if isRecording {
-                stopRecording()
-                if meetsMinimum {
-                    showingSavePrompt = true
-                } else {
-                    showingTooShortAlert = true
-                }
-            } else {
-                startRecording()
-            }
+            handleRecordTap()
         } label: {
-            Text(isRecording ? "Stop" : "Start")
-                .font(.title.bold())
-                .foregroundStyle(.white)
-                .frame(width: 160, height: 160)
-                .background(isRecording ? Color.red : Color.green, in: Circle())
+            HStack(spacing: 6) {
+                Image(systemName: isRecording ? "stop.fill" : "record.circle.fill")
+                    .font(.callout.bold())
+                Text(isRecording ? "Stop" : "Record")
+                    .font(.callout.bold())
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Color.red, in: Capsule())
         }
         .buttonStyle(.plain)
         .disabled(isAcquiringGPS)
+    }
+
+    private func handleRecordTap() {
+        if isRecording {
+            stopRecording()
+            if meetsMinimum {
+                showingSavePrompt = true
+            } else {
+                showingTooShortAlert = true
+            }
+        } else {
+            startRecording()
+        }
     }
 
     private var acquiringOverlay: some View {
@@ -227,19 +254,6 @@ struct CreateRouteView: View {
                     .font(.callout)
                     .foregroundStyle(.white.opacity(0.85))
             }
-        }
-    }
-
-    @ViewBuilder
-    private var authorizationFootnote: some View {
-        switch tracker.authorizationStatus {
-        case .denied, .restricted:
-            Text("Location access denied. Enable it in Settings to record a route.")
-                .font(.footnote)
-                .foregroundStyle(.red)
-                .multilineTextAlignment(.center)
-        default:
-            EmptyView()
         }
     }
 
@@ -262,7 +276,7 @@ struct CreateRouteView: View {
         currentDistance >= minimumDistanceMeters
     }
 
-    private var canMarkTurnaround: Bool {
+    private var canMarkBoundary: Bool {
         isRecording
         && currentDistance >= minimumDistanceMeters
         && currentDistance > (segmentBoundaries.last ?? 0)
@@ -272,6 +286,7 @@ struct CreateRouteView: View {
 
     private func startRecording() {
         segmentBoundaries = []
+        segmentDirections = []
         turnaroundCoordinates = []
         recordingStartIndex = tracker.recordedLocations.count
         isRecording = true
@@ -281,10 +296,11 @@ struct CreateRouteView: View {
         isRecording = false
     }
 
-    private func markTurnaround() {
+    private func markBoundary(direction: SegmentDirection) {
         let haptic = UIImpactFeedbackGenerator(style: .medium)
         haptic.impactOccurred()
         segmentBoundaries.append(currentDistance)
+        segmentDirections.append(direction)
         if let last = tracker.recordedLocations.last?.coordinate {
             turnaroundCoordinates.append(last)
         }
@@ -297,10 +313,11 @@ struct CreateRouteView: View {
 
         var prev: Double = 0
         for (idx, boundary) in segmentBoundaries.enumerated() {
+            let dir = segmentDirections.indices.contains(idx) ? segmentDirections[idx] : .around
             let segment = RouteSegment(
                 order: idx,
                 distanceMeters: max(0, boundary - prev),
-                endLabel: "Turnaround"
+                endLabel: dir.rawValue
             )
             route.segments.append(segment)
             prev = boundary
@@ -308,7 +325,7 @@ struct CreateRouteView: View {
         let lastSegment = RouteSegment(
             order: segmentBoundaries.count,
             distanceMeters: max(0, total - prev),
-            endLabel: "End"
+            endLabel: SegmentDirection.end.rawValue
         )
         route.segments.append(lastSegment)
 

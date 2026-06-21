@@ -46,6 +46,7 @@ struct SessionRecordingView: View {
     // Segment alerts
     @State private var announcedSegmentsInLap: Set<Int> = []
     @State private var turnaroundAlertVisible = false
+    @State private var turnaroundAlertDirection: SegmentDirection = .around
 
     private let startToleranceMeters: CLLocationDistance = 20
     private let maxLaps: Int = 20
@@ -106,12 +107,12 @@ struct SessionRecordingView: View {
 
     private var turnaroundOverlay: some View {
         ZStack {
-            Color.orange.ignoresSafeArea()
+            turnaroundAlertDirection.alertColor.ignoresSafeArea()
             VStack(spacing: 20) {
-                Image(systemName: "arrow.uturn.backward.circle.fill")
+                Image(systemName: turnaroundAlertDirection.alertIcon)
                     .font(.system(size: 140))
                     .foregroundStyle(.white)
-                Text("TURN AROUND")
+                Text(turnaroundAlertDirection.alertTitle)
                     .font(.system(size: 56, weight: .heavy, design: .rounded))
                     .foregroundStyle(.white)
             }
@@ -514,16 +515,19 @@ struct SessionRecordingView: View {
         let ends = route.segmentEndDistances
         // Only interior boundaries trigger turnaround alerts; the final one is the lap end.
         guard ends.count > 1 else { return }
+        let segments = route.sortedSegments
         let interior = ends.dropLast()
         for (idx, threshold) in interior.enumerated() {
             if !announcedSegmentsInLap.contains(idx) && currentLapDistance >= threshold {
                 announcedSegmentsInLap.insert(idx)
-                fireTurnaroundAlert()
+                let direction = SegmentDirection(rawValue: segments[idx].endLabel) ?? .around
+                fireTurnaroundAlert(direction: direction)
             }
         }
     }
 
-    private func fireTurnaroundAlert() {
+    private func fireTurnaroundAlert(direction: SegmentDirection) {
+        turnaroundAlertDirection = direction
         // Strong haptic burst.
         Task { @MainActor in
             let warning = UINotificationFeedbackGenerator()

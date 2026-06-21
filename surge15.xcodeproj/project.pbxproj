@@ -22,6 +22,7 @@
 		956D4B342FE77E6D0024B101 /* PlanDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B332FE77E6D0024B101 /* PlanDetailView.swift */; };
 		956D4B362FE77E7B0024B101 /* SettingsHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B352FE77E7B0024B101 /* SettingsHomeView.swift */; };
 		956D4B382FE77E970024B101 /* WorkoutStarterSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B372FE77E970024B101 /* WorkoutStarterSheet.swift */; };
+		956D4B3A2FE78A010024B101 /* SegmentDirection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B392FE78A010024B101 /* SegmentDirection.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -60,6 +61,7 @@
 		956D4B332FE77E6D0024B101 /* PlanDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanDetailView.swift; sourceTree = "<group>"; };
 		956D4B352FE77E7B0024B101 /* SettingsHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHomeView.swift; sourceTree = "<group>"; };
 		956D4B372FE77E970024B101 /* WorkoutStarterSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutStarterSheet.swift; sourceTree = "<group>"; };
+		956D4B392FE78A010024B101 /* SegmentDirection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentDirection.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -127,6 +129,7 @@
 				956D4B332FE77E6D0024B101 /* PlanDetailView.swift */,
 				956D4B352FE77E7B0024B101 /* SettingsHomeView.swift */,
 				956D4B372FE77E970024B101 /* WorkoutStarterSheet.swift */,
+				956D4B392FE78A010024B101 /* SegmentDirection.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -292,6 +295,7 @@
 				956D4B262FE7405C0024B101 /* SessionDetailView.swift in Sources */,
 				956D4B342FE77E6D0024B101 /* PlanDetailView.swift in Sources */,
 				956D4B2A2FE76EDC0024B101 /* EditRouteView.swift in Sources */,
+				956D4B3A2FE78A010024B101 /* SegmentDirection.swift in Sources */,
 				956D4B202FE740190024B101 /* CreateRouteView.swift in Sources */,
 				956D4B2C2FE776440024B101 /* SurgeSessionPickerSheet.swift in Sources */,
 				956D4B322FE77E600024B101 /* CreatePlanView.swift in Sources */,

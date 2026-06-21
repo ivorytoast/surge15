@@ -790,16 +790,37 @@ struct CalendarHomeView: View {
                 emptyDayView
             } else {
                 List {
-                    Section {
-                        ForEach(sessionsOnSelectedDate) { surge in
-                            NavigationLink(value: surge) {
-                                surgeRow(surge)
+                    ForEach(TimeOfDayGroup.allCases, id: \.self) { group in
+                        let bucket = sessionsByTimeOfDay[group] ?? []
+                        if !bucket.isEmpty {
+                            Section {
+                                ForEach(bucket) { surge in
+                                    NavigationLink(value: surge) {
+                                        surgeRow(surge)
+                                    }
+                                }
+                            } header: {
+                                Text(group.rawValue)
+                                    .font(.system(size: 22))
                             }
                         }
-                    } header: {
-                        Text(selectedDate.formatted(date: .complete, time: .omitted))
                     }
                 }
+            }
+        }
+    }
+
+    private enum TimeOfDayGroup: String, CaseIterable {
+        case day        = "☀️"
+        case afternoon  = "🌅"
+        case night      = "🌙"
+
+        static func from(_ date: Date) -> TimeOfDayGroup {
+            let hour = Calendar.current.component(.hour, from: date)
+            switch hour {
+            case 5..<12: return .day
+            case 12..<17: return .afternoon
+            default: return .night
             }
         }
     }
@@ -839,12 +860,19 @@ struct CalendarHomeView: View {
         }
     }
 
+    private var sessionsByTimeOfDay: [TimeOfDayGroup: [SurgeSession]] {
+        Dictionary(grouping: sessionsOnSelectedDate) { surge in
+            TimeOfDayGroup.from(surge.createdAt)
+        }
+        .mapValues { $0.sorted { $0.createdAt < $1.createdAt } }
+    }
+
     private func surgeRow(_ surge: SurgeSession) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(surge.name).font(.headline)
+            Text(surge.createdAt.formatted(date: .omitted, time: .shortened))
+                .font(.headline)
+                .monospacedDigit()
             HStack(spacing: 10) {
-                Text(surge.createdAt.formatted(date: .omitted, time: .shortened))
-                Text("·")
                 Text("\(surge.sessions.count) session\(surge.sessions.count == 1 ? "" : "s")")
                 if let dur = surge.totalDurationSeconds {
                     Text("·")

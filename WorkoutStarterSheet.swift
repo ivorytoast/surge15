@@ -34,7 +34,7 @@ struct WorkoutStarterSheet: View {
                 }
 
                 if !todaysSurgeSessions.isEmpty {
-                    Section("Today's Surge Sessions") {
+                    Section("Pick A Surge Session From Today") {
                         ForEach(todaysSurgeSessions) { surge in
                             Button {
                                 onSelect(surge)
@@ -50,7 +50,7 @@ struct WorkoutStarterSheet: View {
                     Button {
                         createBlank()
                     } label: {
-                        Label("New Blank Surge Session", systemImage: "plus.circle.fill")
+                        Label("New Surge Session", systemImage: "plus.circle.fill")
                             .font(.headline)
                     }
                 }
