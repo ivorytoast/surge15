@@ -53,34 +53,49 @@ struct SessionRecordingView: View {
 
     var body: some View {
         ZStack {
-            VStack(spacing: 16) {
-                Text(route.name)
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-
-                if isGateState {
-                    gateMap
-                    gateStatusLine
-                    lapPicker
-                    Spacer(minLength: 8)
-                } else {
+            if hasSaved {
+                VStack(spacing: 24) {
                     Spacer()
-                    statusBlock
+                    completedBlock
                     Spacer()
+                    doneButton
                 }
+                .padding()
+            } else if isGateState {
+                gateMapFullScreen
+                    .ignoresSafeArea(edges: .bottom)
 
-                actionButton
-                authorizationFootnote
+                VStack(spacing: 0) {
+                    gateStatusBanner
+                        .padding(.top, 10)
+                    Spacer()
+                    lapPickerFloating
+                    authorizationFootnote
+                        .padding(.top, 8)
+                }
+                .padding(.bottom, 22)
+            } else {
+                VStack(spacing: 16) {
+                    Spacer()
+                    activeBlock
+                    Spacer()
+                    authorizationFootnote
+                }
+                .padding()
             }
-            .padding()
 
             if turnaroundAlertVisible {
                 turnaroundOverlay
                     .transition(.opacity)
             }
         }
-        .navigationTitle("Session")
+        .navigationTitle(route.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                actionToolbarPill
+            }
+        }
         .task {
             while !Task.isCancelled {
                 now = Date()
@@ -138,6 +153,38 @@ struct SessionRecordingView: View {
     private var isWithinStartTolerance: Bool {
         guard let d = distanceToStart else { return false }
         return d <= startToleranceMeters
+    }
+
+    private struct GuidanceArrow {
+        let userCoord: CLLocationCoordinate2D
+        let startCoord: CLLocationCoordinate2D
+        let arrowCoord: CLLocationCoordinate2D
+        /// Bearing in degrees from user → start (0 = north, clockwise).
+        let bearing: Double
+    }
+
+    /// "Walk this way" cue. Drawn from the user's blue dot to the start flag with a
+    /// small arrow ~85% of the way along, pointing at the start. Hidden once the user
+    /// is inside the 20 m tolerance (the line is no longer informative).
+    private var guidanceArrow: GuidanceArrow? {
+        guard let userCoord = currentLocation?.coordinate,
+              let start = route.startCoordinate,
+              !isWithinStartTolerance else { return nil }
+
+        let f = 0.85
+        let arrowCoord = CLLocationCoordinate2D(
+            latitude: userCoord.latitude + (start.latitude - userCoord.latitude) * f,
+            longitude: userCoord.longitude + (start.longitude - userCoord.longitude) * f
+        )
+
+        let dLon = (start.longitude - userCoord.longitude) * .pi / 180
+        let lat1 = userCoord.latitude * .pi / 180
+        let lat2 = start.latitude * .pi / 180
+        let y = sin(dLon) * cos(lat2)
+        let x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
+        let bearing = atan2(y, x) * 180 / .pi
+
+        return GuidanceArrow(userCoord: userCoord, startCoord: start, arrowCoord: arrowCoord, bearing: bearing)
     }
 
     private var sessionLocations: [CLLocation] {
@@ -290,10 +337,10 @@ struct SessionRecordingView: View {
         return targetLaps > 1 ? "All Laps Complete!" : "Lap Complete!"
     }
 
-    // MARK: - Gate (map + status + lap picker)
+    // MARK: - Gate (full-screen map + floating overlays)
 
     @ViewBuilder
-    private var gateMap: some View {
+    private var gateMapFullScreen: some View {
         if route.startCoordinate != nil {
             Map(position: $cameraPosition) {
                 if let start = route.startCoordinate {
@@ -319,6 +366,24 @@ struct SessionRecordingView: View {
                         .stroke(Color.blue.opacity(0.7), lineWidth: 4)
                 }
 
+                // Orange dashed "guide" from the user toward the start, with an arrow
+                // along the line pointing at the start. Hidden once inside tolerance.
+                if let arrow = guidanceArrow {
+                    MapPolyline(coordinates: [arrow.userCoord, arrow.startCoord])
+                        .stroke(
+                            Color.orange,
+                            style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [5, 8])
+                        )
+
+                    Annotation("", coordinate: arrow.arrowCoord) {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 22, weight: .heavy))
+                            .foregroundStyle(.orange)
+                            .shadow(color: .white, radius: 2)
+                            .rotationEffect(.degrees(arrow.bearing))
+                    }
+                }
+
                 UserAnnotation()
             }
             .mapStyle(.standard(elevation: .flat))
@@ -326,86 +391,102 @@ struct SessionRecordingView: View {
                 MapUserLocationButton()
                 MapCompass()
             }
-            .frame(height: 320)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .strokeBorder(isWithinStartTolerance ? Color.green : Color.secondary.opacity(0.2), lineWidth: 2)
-            )
         } else {
-            HStack(spacing: 12) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                Text("This route has no defined path.")
-                    .font(.callout)
-            }
-            .padding()
-            .frame(maxWidth: .infinity)
-            .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+            Color(.systemGroupedBackground)
+                .overlay {
+                    HStack(spacing: 12) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text("This route has no defined path.")
+                            .font(.callout)
+                    }
+                    .padding()
+                }
         }
     }
 
     @ViewBuilder
-    private var gateStatusLine: some View {
+    private var gateStatusBanner: some View {
         if route.startCoordinate == nil {
             EmptyView()
         } else if let d = distanceToStart {
             if d <= startToleranceMeters {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    Text("At Start — ready to go")
-                        .font(.title3.bold())
+                    Text("At Start")
+                        .font(.headline.bold())
                 }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 10)
+                .background(Color.green, in: Capsule())
+                .shadow(color: .black.opacity(0.25), radius: 8, y: 2)
             } else {
-                VStack(spacing: 2) {
-                    Text(Formatters.distance(d))
-                        .font(.system(size: 36, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                    Text("Walk to the green zone to start")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                HStack(spacing: 10) {
+                    Image(systemName: "figure.walk")
+                        .font(.callout)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Walk to Start")
+                            .font(.caption.bold())
+                        Text(Formatters.distance(d))
+                            .font(.title3.bold().monospacedDigit())
+                    }
                 }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Color.black.opacity(0.75), in: Capsule())
+                .shadow(color: .black.opacity(0.25), radius: 8, y: 2)
             }
         } else {
             Label("Acquiring GPS…", systemImage: "location.viewfinder")
-                .foregroundStyle(.secondary)
+                .font(.callout)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Color.black.opacity(0.6), in: Capsule())
         }
     }
 
-    private var lapPicker: some View {
-        HStack(spacing: 20) {
+    private var lapPickerFloating: some View {
+        HStack(spacing: 18) {
             Button {
                 if targetLaps > 1 { targetLaps -= 1 }
             } label: {
                 Image(systemName: "minus.circle.fill")
                     .font(.system(size: 32))
+                    .foregroundStyle(targetLaps <= 1 ? Color.secondary : Color.accentColor)
             }
             .buttonStyle(.plain)
             .disabled(targetLaps <= 1)
-            .foregroundStyle(targetLaps <= 1 ? Color.secondary : Color.accentColor)
 
             VStack(spacing: 0) {
                 Text("\(targetLaps)")
-                    .font(.system(size: 36, weight: .bold, design: .rounded))
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
                     .monospacedDigit()
                 Text(targetLaps == 1 ? "lap" : "laps")
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            .frame(minWidth: 70)
+            .frame(minWidth: 56)
 
             Button {
                 if targetLaps < maxLaps { targetLaps += 1 }
             } label: {
                 Image(systemName: "plus.circle.fill")
                     .font(.system(size: 32))
+                    .foregroundStyle(targetLaps >= maxLaps ? Color.secondary : Color.accentColor)
             }
             .buttonStyle(.plain)
             .disabled(targetLaps >= maxLaps)
-            .foregroundStyle(targetLaps >= maxLaps ? Color.secondary : Color.accentColor)
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 22)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(
+            Capsule().strokeBorder(Color.white.opacity(0.15), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
     }
 
     private func centerCameraOnStartIfNeeded() {
@@ -418,45 +499,58 @@ struct SessionRecordingView: View {
         didCenterCamera = true
     }
 
-    // MARK: - Action button
+    // MARK: - Action pill (toolbar) + Done button (completed)
 
     @ViewBuilder
-    private var actionButton: some View {
+    private var actionToolbarPill: some View {
         if hasSaved {
-            Button {
-                dismiss()
-            } label: {
-                Text("Done")
-                    .font(.title2.bold())
-                    .foregroundStyle(.white)
-                    .frame(width: 180, height: 60)
-                    .background(Color.accentColor, in: Capsule())
-            }
-            .buttonStyle(.plain)
+            EmptyView()
         } else if isSessionActive {
             Button {
                 stopAndSave(auto: false)
             } label: {
-                Text("Stop")
-                    .font(.title.bold())
-                    .foregroundStyle(.white)
-                    .frame(width: 180, height: 180)
-                    .background(Color.red, in: Circle())
+                actionPillLabel(text: "Stop", icon: "stop.fill", background: .red)
             }
             .buttonStyle(.plain)
         } else {
             Button {
                 beginSession()
             } label: {
-                Text("Start")
-                    .font(.title.bold())
-                    .foregroundStyle(.white)
-                    .frame(width: 180, height: 180)
-                    .background(isWithinStartTolerance ? Color.green : Color.gray.opacity(0.5), in: Circle())
+                actionPillLabel(
+                    text: "Start",
+                    icon: "play.fill",
+                    background: isWithinStartTolerance ? Color.green : Color.gray.opacity(0.55)
+                )
             }
             .buttonStyle(.plain)
             .disabled(!isWithinStartTolerance)
         }
+    }
+
+    private func actionPillLabel(text: String, icon: String, background: Color) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.callout.bold())
+            Text(text)
+                .font(.callout.bold())
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(background, in: Capsule())
+    }
+
+    private var doneButton: some View {
+        Button {
+            dismiss()
+        } label: {
+            Text("Done")
+                .font(.title2.bold())
+                .foregroundStyle(.white)
+                .frame(width: 180, height: 60)
+                .background(Color.accentColor, in: Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder

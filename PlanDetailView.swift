@@ -11,11 +11,25 @@ import SwiftData
 struct PlanDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.startPlan) private var startPlan
     @Bindable var plan: Plan
     @State private var showingDeleteConfirm = false
 
     var body: some View {
         List {
+            if let startPlan, !plan.items.isEmpty {
+                Section {
+                    Button {
+                        startPlan(plan)
+                    } label: {
+                        Label("Start This Plan", systemImage: "bolt.fill")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .listRowBackground(Color.blue.opacity(0.15))
+                }
+            }
+
             Section("Name") {
                 TextField("Plan name", text: $plan.name)
                     .textInputAutocapitalization(.words)

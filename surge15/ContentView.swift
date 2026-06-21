@@ -71,28 +71,30 @@ private func truncatedRouteName(_ name: String, limit: Int = routeNameRowCharLim
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \SurgeSession.createdAt, order: .reverse) private var allSurgeSessions: [SurgeSession]
-    @Query private var plans: [Plan]
 
     @State private var selectedTab: Int = 0
     @State private var lastValidTab: Int = 0
-    @State private var showingWorkoutStarter = false
-    @State private var pendingSurge: SurgeSession?
     @State private var sessionsPath = NavigationPath()
 
-    // Tab tags. The blue + sits dead-center.
+    // Tab tags. The blue bolt sits dead-center.
     private let routesTab = 0
     private let planTab = 1
-    private let workoutTab = 2
+    private let surgeTab = 2
     private let sessionsTab = 3
     private let settingsTab = 4
 
     /// SF Symbol rendered with an explicit blue tint that the tab bar won't re-tint
     /// to grey when the item is unselected. UIImage's `.alwaysOriginal` rendering
     /// mode is what bypasses the system's automatic tint coloring.
-    private static let createTabIcon: UIImage = {
-        UIImage(systemName: "plus.circle.fill")?
+    private static let surgeTabIcon: UIImage = {
+        UIImage(systemName: "bolt.fill")?
             .withTintColor(.systemBlue, renderingMode: .alwaysOriginal) ?? UIImage()
     }()
+
+    /// True when there is an unexpired surge session — the next started workout will attach to it.
+    private var hasCurrentSurge: Bool {
+        allSurgeSessions.contains { $0.isCurrent }
+    }
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -108,16 +110,17 @@ struct ContentView: View {
                 }
                 .tag(planTab)
 
-            // Action-only middle tab. Selecting it opens the unified workout starter.
+            // Action-only middle tab. "Surging" while there's an active surge session
+            // (taps jump to its detail); "Surge" otherwise (taps pop to Routes).
             Color.clear
                 .tabItem {
                     Label {
-                        Text("Workout")
+                        Text(hasCurrentSurge ? "Surging" : "Surge")
                     } icon: {
-                        Image(uiImage: Self.createTabIcon)
+                        Image(uiImage: Self.surgeTabIcon)
                     }
                 }
-                .tag(workoutTab)
+                .tag(surgeTab)
 
             SessionsHomeView(path: $sessionsPath)
                 .tabItem {
@@ -132,47 +135,54 @@ struct ContentView: View {
                 .tag(settingsTab)
         }
         .onChange(of: selectedTab) { _, new in
-            if new == workoutTab {
-                handleWorkoutTap(previousTab: lastValidTab)
+            if new == surgeTab {
+                handleSurgeTap()
             } else {
                 lastValidTab = new
             }
         }
-        .sheet(isPresented: $showingWorkoutStarter, onDismiss: handleStarterDismiss) {
-            WorkoutStarterSheet(onSelect: { surge in
-                pendingSurge = surge
-                showingWorkoutStarter = false
-            })
-        }
+        .environment(\.startPlan, startPlanAction)
     }
 
-    // MARK: - Workout CTA flow
+    // MARK: - Surge tab CTA
 
-    private func handleWorkoutTap(previousTab: Int) {
-        let now = Date()
-        let todays = allSurgeSessions.filter {
-            Calendar.current.isDate($0.date, inSameDayAs: now)
-        }
-        // If there's nothing to choose between (no plans AND no today's surge sessions),
-        // skip the sheet and auto-create a blank surge session.
-        if plans.isEmpty && todays.isEmpty {
-            let surge = SurgeSession(
-                name: SurgeSession.autoName(for: now),
-                date: Calendar.current.startOfDay(for: now),
-                createdAt: now
-            )
-            modelContext.insert(surge)
-            jumpToSurgeDetail(surge)
+    private func handleSurgeTap() {
+        if let current = SurgeSession.current(in: modelContext) {
+            jumpToSurgeDetail(current)
         } else {
-            showingWorkoutStarter = true
-            selectedTab = previousTab
+            // No active workout — bounce the user to Routes so they can pick one.
+            selectedTab = routesTab
+            lastValidTab = routesTab
         }
     }
 
-    private func handleStarterDismiss() {
-        guard let surge = pendingSurge else { return }
-        pendingSurge = nil
-        jumpToSurgeDetail(surge)
+    // MARK: - Plan start
+
+    /// Closure injected via `\.startPlan` environment so `PlanDetailView` can kick off
+    /// a workout without knowing about the tab structure.
+    private var startPlanAction: (Plan) -> Void {
+        { plan in
+            let surge: SurgeSession
+            if let current = SurgeSession.current(in: modelContext) {
+                // Attach this plan to the current surge session if it has none yet.
+                if current.plan == nil {
+                    current.plan = plan
+                    current.name = plan.name
+                }
+                surge = current
+            } else {
+                let now = Date()
+                let new = SurgeSession(
+                    name: plan.name,
+                    date: Calendar.current.startOfDay(for: now),
+                    createdAt: now
+                )
+                new.plan = plan
+                modelContext.insert(new)
+                surge = new
+            }
+            jumpToSurgeDetail(surge)
+        }
     }
 
     private func jumpToSurgeDetail(_ surge: SurgeSession) {
@@ -181,6 +191,19 @@ struct ContentView: View {
         sessionsPath = newPath
         selectedTab = sessionsTab
         lastValidTab = sessionsTab
+    }
+}
+
+// MARK: - Environment value for "start this plan"
+
+private struct StartPlanKey: EnvironmentKey {
+    static let defaultValue: ((Plan) -> Void)? = nil
+}
+
+extension EnvironmentValues {
+    var startPlan: ((Plan) -> Void)? {
+        get { self[StartPlanKey.self] }
+        set { self[StartPlanKey.self] = newValue }
     }
 }
 
@@ -201,11 +224,15 @@ struct RoutesHomeView: View {
     // Peek sheet + post-dismiss navigation
     @State private var peekRoute: Route?
     @State private var clusterPeek: RouteClusterSelection?
-    @State private var pendingOpen: Route?
     @State private var pendingEdit: Route?
     @State private var pendingPeek: Route?
     @State private var editingRoute: Route?
     @State private var path = NavigationPath()
+
+    // "Go from map" flow — peek's Go button skips the detail view and jumps
+    // straight to the surge-session picker, then into SessionRecordingView.
+    @State private var goRoute: Route?
+    @State private var goSurge: SurgeSession?
 
     private static let defaultRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 39.5, longitude: -98.35),
@@ -230,14 +257,11 @@ struct RoutesHomeView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarContent }
-            .navigationDestination(for: Route.self) { route in
-                RouteDetailView(route: route)
-            }
             .sheet(item: $peekRoute, onDismiss: handlePeekDismiss) { route in
                 RoutePeekSheet(
                     route: route,
                     onUse: {
-                        pendingOpen = route
+                        goRoute = route
                         peekRoute = nil
                     },
                     onEdit: {
@@ -245,6 +269,11 @@ struct RoutesHomeView: View {
                         peekRoute = nil
                     }
                 )
+            }
+            .navigationDestination(item: $goSurge) { surge in
+                if let route = goRoute {
+                    SessionRecordingView(route: route, surgeSession: surge)
+                }
             }
             .sheet(item: $clusterPeek, onDismiss: handleClusterDismiss) { selection in
                 ClusterSheet(
@@ -274,9 +303,10 @@ struct RoutesHomeView: View {
     // MARK: - Deferred sheet→navigation handoff
 
     private func handlePeekDismiss() {
-        if let route = pendingOpen {
-            path.append(route)
-            pendingOpen = nil
+        if goRoute != nil {
+            // "Go" was pressed — auto-attach to the current surge session (or create one)
+            // and push the recording view directly.
+            goSurge = SurgeSession.currentOrNew(in: modelContext)
         } else if let route = pendingEdit {
             editingRoute = route
             pendingEdit = nil
@@ -482,9 +512,13 @@ struct RoutesHomeView: View {
             sortHeader
             List {
                 ForEach(Array(sortedRoutes.enumerated()), id: \.element.id) { idx, route in
-                    NavigationLink(value: route) {
+                    Button {
+                        goRoute = route
+                        goSurge = SurgeSession.currentOrNew(in: modelContext)
+                    } label: {
                         routeRow(route, color: colors[idx])
                     }
+                    .buttonStyle(.plain)
                 }
                 .onDelete(perform: deleteSortedRoutes)
             }
@@ -790,37 +824,15 @@ struct CalendarHomeView: View {
                 emptyDayView
             } else {
                 List {
-                    ForEach(TimeOfDayGroup.allCases, id: \.self) { group in
-                        let bucket = sessionsByTimeOfDay[group] ?? []
-                        if !bucket.isEmpty {
-                            Section {
-                                ForEach(bucket) { surge in
-                                    NavigationLink(value: surge) {
-                                        surgeRow(surge)
-                                    }
-                                }
-                            } header: {
-                                Text(group.rawValue)
-                                    .font(.system(size: 22))
-                            }
+                    ForEach(sessionsOnSelectedDate.sorted { $0.createdAt < $1.createdAt }) { surge in
+                        NavigationLink(value: surge) {
+                            surgeRow(surge)
                         }
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
                     }
                 }
-            }
-        }
-    }
-
-    private enum TimeOfDayGroup: String, CaseIterable {
-        case day        = "☀️"
-        case afternoon  = "🌅"
-        case night      = "🌙"
-
-        static func from(_ date: Date) -> TimeOfDayGroup {
-            let hour = Calendar.current.component(.hour, from: date)
-            switch hour {
-            case 5..<12: return .day
-            case 12..<17: return .afternoon
-            default: return .night
+                .listStyle(.plain)
             }
         }
     }
@@ -858,13 +870,6 @@ struct CalendarHomeView: View {
         surgeSessions.filter {
             Calendar.current.isDate($0.date, inSameDayAs: selectedDate)
         }
-    }
-
-    private var sessionsByTimeOfDay: [TimeOfDayGroup: [SurgeSession]] {
-        Dictionary(grouping: sessionsOnSelectedDate) { surge in
-            TimeOfDayGroup.from(surge.createdAt)
-        }
-        .mapValues { $0.sorted { $0.createdAt < $1.createdAt } }
     }
 
     private func surgeRow(_ surge: SurgeSession) -> some View {

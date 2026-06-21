@@ -164,6 +164,9 @@ final class SurgeSession {
     var date: Date
     /// When this surge session was created (used for start-time display + sort).
     var createdAt: Date
+    /// When the user manually ended the workout. While nil, this surge session is
+    /// eligible to be "current" (subject to the 1-hour idle window).
+    var endedAt: Date?
     /// The plan template this surge session was instantiated from, if any.
     var plan: Plan?
 
@@ -203,6 +206,46 @@ final class SurgeSession {
         default: timeOfDay = "Night"
         }
         return "\(timeOfDay) · \(date.formatted(.dateTime.month().day()))"
+    }
+
+    // MARK: - "Current" surge session lifecycle
+
+    /// A surge session expires this long after its last activity.
+    static let currentSurgeExpiryInterval: TimeInterval = 3600  // 1 hour
+
+    /// Most recent moment something happened — either creation or the latest attached session start.
+    var lastActivityAt: Date {
+        max(createdAt, sessions.map(\.startedAt).max() ?? createdAt)
+    }
+
+    /// True while this surge session is inside the 1-hour window AND hasn't been manually ended.
+    var isCurrent: Bool {
+        guard endedAt == nil else { return false }
+        return Date().timeIntervalSince(lastActivityAt) < Self.currentSurgeExpiryInterval
+    }
+
+    /// Returns the active surge session, or `nil` if every existing surge session has expired.
+    static func current(in context: ModelContext) -> SurgeSession? {
+        var descriptor = FetchDescriptor<SurgeSession>(
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 50
+        guard let all = try? context.fetch(descriptor) else { return nil }
+        return all.first { $0.isCurrent }
+    }
+
+    /// Returns the current surge session, or inserts and returns a brand-new auto-named one.
+    @discardableResult
+    static func currentOrNew(in context: ModelContext) -> SurgeSession {
+        if let active = current(in: context) { return active }
+        let now = Date()
+        let surge = SurgeSession(
+            name: autoName(for: now),
+            date: Calendar.current.startOfDay(for: now),
+            createdAt: now
+        )
+        context.insert(surge)
+        return surge
     }
 }
 
