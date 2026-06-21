@@ -17,6 +17,9 @@ struct surge15App: App {
             RouteSegment.self,
             Session.self,
             SessionPoint.self,
+            SurgeSession.self,
+            Plan.self,
+            PlanItem.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

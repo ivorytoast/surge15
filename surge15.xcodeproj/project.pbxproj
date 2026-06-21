@@ -13,6 +13,15 @@
 		956D4B222FE7402F0024B101 /* RouteDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B212FE7402F0024B101 /* RouteDetailView.swift */; };
 		956D4B242FE7404B0024B101 /* SessionRecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B232FE7404B0024B101 /* SessionRecordingView.swift */; };
 		956D4B262FE7405C0024B101 /* SessionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B252FE7405C0024B101 /* SessionDetailView.swift */; };
+		956D4B282FE76ECA0024B101 /* RoutePeekSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B272FE76ECA0024B101 /* RoutePeekSheet.swift */; };
+		956D4B2A2FE76EDC0024B101 /* EditRouteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B292FE76EDC0024B101 /* EditRouteView.swift */; };
+		956D4B2C2FE776440024B101 /* SurgeSessionPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B2B2FE776440024B101 /* SurgeSessionPickerSheet.swift */; };
+		956D4B2E2FE776790024B101 /* SurgeSessionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B2D2FE776790024B101 /* SurgeSessionDetailView.swift */; };
+		956D4B302FE77E4F0024B101 /* PlansHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B2F2FE77E4F0024B101 /* PlansHomeView.swift */; };
+		956D4B322FE77E600024B101 /* CreatePlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B312FE77E600024B101 /* CreatePlanView.swift */; };
+		956D4B342FE77E6D0024B101 /* PlanDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B332FE77E6D0024B101 /* PlanDetailView.swift */; };
+		956D4B362FE77E7B0024B101 /* SettingsHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B352FE77E7B0024B101 /* SettingsHomeView.swift */; };
+		956D4B382FE77E970024B101 /* WorkoutStarterSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B372FE77E970024B101 /* WorkoutStarterSheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -42,6 +51,15 @@
 		956D4B212FE7402F0024B101 /* RouteDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteDetailView.swift; sourceTree = "<group>"; };
 		956D4B232FE7404B0024B101 /* SessionRecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRecordingView.swift; sourceTree = "<group>"; };
 		956D4B252FE7405C0024B101 /* SessionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDetailView.swift; sourceTree = "<group>"; };
+		956D4B272FE76ECA0024B101 /* RoutePeekSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePeekSheet.swift; sourceTree = "<group>"; };
+		956D4B292FE76EDC0024B101 /* EditRouteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditRouteView.swift; sourceTree = "<group>"; };
+		956D4B2B2FE776440024B101 /* SurgeSessionPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurgeSessionPickerSheet.swift; sourceTree = "<group>"; };
+		956D4B2D2FE776790024B101 /* SurgeSessionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurgeSessionDetailView.swift; sourceTree = "<group>"; };
+		956D4B2F2FE77E4F0024B101 /* PlansHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlansHomeView.swift; sourceTree = "<group>"; };
+		956D4B312FE77E600024B101 /* CreatePlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatePlanView.swift; sourceTree = "<group>"; };
+		956D4B332FE77E6D0024B101 /* PlanDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanDetailView.swift; sourceTree = "<group>"; };
+		956D4B352FE77E7B0024B101 /* SettingsHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHomeView.swift; sourceTree = "<group>"; };
+		956D4B372FE77E970024B101 /* WorkoutStarterSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutStarterSheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -100,6 +118,15 @@
 				956D4B212FE7402F0024B101 /* RouteDetailView.swift */,
 				956D4B232FE7404B0024B101 /* SessionRecordingView.swift */,
 				956D4B252FE7405C0024B101 /* SessionDetailView.swift */,
+				956D4B272FE76ECA0024B101 /* RoutePeekSheet.swift */,
+				956D4B292FE76EDC0024B101 /* EditRouteView.swift */,
+				956D4B2B2FE776440024B101 /* SurgeSessionPickerSheet.swift */,
+				956D4B2D2FE776790024B101 /* SurgeSessionDetailView.swift */,
+				956D4B2F2FE77E4F0024B101 /* PlansHomeView.swift */,
+				956D4B312FE77E600024B101 /* CreatePlanView.swift */,
+				956D4B332FE77E6D0024B101 /* PlanDetailView.swift */,
+				956D4B352FE77E7B0024B101 /* SettingsHomeView.swift */,
+				956D4B372FE77E970024B101 /* WorkoutStarterSheet.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -259,10 +286,19 @@
 			files = (
 				956D4B1E2FE73FFF0024B101 /* Formatters.swift in Sources */,
 				956D4B1A2FE737E80024B101 /* LocationTracker.swift in Sources */,
+				956D4B282FE76ECA0024B101 /* RoutePeekSheet.swift in Sources */,
+				956D4B2E2FE776790024B101 /* SurgeSessionDetailView.swift in Sources */,
 				956D4B222FE7402F0024B101 /* RouteDetailView.swift in Sources */,
 				956D4B262FE7405C0024B101 /* SessionDetailView.swift in Sources */,
+				956D4B342FE77E6D0024B101 /* PlanDetailView.swift in Sources */,
+				956D4B2A2FE76EDC0024B101 /* EditRouteView.swift in Sources */,
 				956D4B202FE740190024B101 /* CreateRouteView.swift in Sources */,
+				956D4B2C2FE776440024B101 /* SurgeSessionPickerSheet.swift in Sources */,
+				956D4B322FE77E600024B101 /* CreatePlanView.swift in Sources */,
+				956D4B302FE77E4F0024B101 /* PlansHomeView.swift in Sources */,
+				956D4B382FE77E970024B101 /* WorkoutStarterSheet.swift in Sources */,
 				956D4B242FE7404B0024B101 /* SessionRecordingView.swift in Sources */,
+				956D4B362FE77E7B0024B101 /* SettingsHomeView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

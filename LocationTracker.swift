@@ -10,6 +10,7 @@ import Observation
 @Observable
 final class LocationTracker: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
+    private var pendingSingleLocation = false
 
     var isRecording = false
     var authorizationStatus: CLAuthorizationStatus = .notDetermined
@@ -43,6 +44,21 @@ final class LocationTracker: NSObject, CLLocationManagerDelegate {
         isRecording = false
     }
 
+    /// Requests a one-shot location fix. Lightweight compared to start() — use this
+    /// for things like the home-screen map where we only need to center on the user
+    /// once without continuous updates.
+    func requestSingleLocation() {
+        switch authorizationStatus {
+        case .notDetermined:
+            pendingSingleLocation = true
+            manager.requestWhenInUseAuthorization()
+        case .authorizedWhenInUse, .authorizedAlways:
+            manager.requestLocation()
+        default:
+            break
+        }
+    }
+
     // MARK: - CLLocationManagerDelegate
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -51,6 +67,11 @@ final class LocationTracker: NSObject, CLLocationManagerDelegate {
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorizationStatus = manager.authorizationStatus
+        if pendingSingleLocation,
+           authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
+            pendingSingleLocation = false
+            manager.requestLocation()
+        }
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {

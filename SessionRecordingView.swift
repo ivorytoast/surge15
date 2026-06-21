@@ -22,6 +22,7 @@ struct SessionRecordingView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Bindable var route: Route
+    let surgeSession: SurgeSession
 
     @State private var tracker = LocationTracker()
 
@@ -565,6 +566,8 @@ struct SessionRecordingView: View {
             session.points.append(point)
         }
         route.sessions.append(session)
+        session.surgeSession = surgeSession
+        surgeSession.sessions.append(session)
         modelContext.insert(session)
         hasSaved = true
     }
@@ -572,7 +575,13 @@ struct SessionRecordingView: View {
 
 #Preview {
     NavigationStack {
-        SessionRecordingView(route: Route(name: "Backyard 1k"))
+        SessionRecordingView(
+            route: Route(name: "Backyard 1k"),
+            surgeSession: SurgeSession(
+                name: "Morning · Jun 20",
+                date: Calendar.current.startOfDay(for: Date())
+            )
+        )
     }
     .modelContainer(for: Route.self, inMemory: true)
 }

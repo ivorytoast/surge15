@@ -11,14 +11,16 @@ import SwiftData
 struct RouteDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var route: Route
-    @State private var showingSessionRecorder = false
+    @State private var showingPicker = false
+    @State private var pendingSurge: SurgeSession?
+    @State private var recordingSurge: SurgeSession?
 
     var body: some View {
         List {
             Section {
                 summaryGrid
-                NavigationLink {
-                    SessionRecordingView(route: route)
+                Button {
+                    showingPicker = true
                 } label: {
                     Label("Start Session", systemImage: "play.fill")
                         .font(.headline)
@@ -46,6 +48,22 @@ struct RouteDetailView: View {
         }
         .navigationTitle(route.name)
         .navigationBarTitleDisplayMode(.large)
+        .sheet(isPresented: $showingPicker, onDismiss: handlePickerDismiss) {
+            SurgeSessionPickerSheet(onSelect: { surge in
+                pendingSurge = surge
+                showingPicker = false
+            })
+        }
+        .navigationDestination(item: $recordingSurge) { surge in
+            SessionRecordingView(route: route, surgeSession: surge)
+        }
+    }
+
+    private func handlePickerDismiss() {
+        if let surge = pendingSurge {
+            recordingSurge = surge
+            pendingSurge = nil
+        }
     }
 
     private var summaryGrid: some View {

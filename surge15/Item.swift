@@ -118,6 +118,94 @@ final class RoutePoint {
     }
 }
 
+// MARK: - Plan (a reusable workout template)
+
+@Model
+final class Plan {
+    var name: String
+    var createdAt: Date
+
+    @Relationship(deleteRule: .cascade, inverse: \PlanItem.plan)
+    var items: [PlanItem] = []
+
+    init(name: String, createdAt: Date = Date()) {
+        self.name = name
+        self.createdAt = createdAt
+    }
+
+    var sortedItems: [PlanItem] {
+        items.sorted { $0.order < $1.order }
+    }
+}
+
+// MARK: - PlanItem (one entry in a plan: a route + target laps)
+
+@Model
+final class PlanItem {
+    var order: Int
+    var targetLaps: Int
+    var route: Route?
+    var plan: Plan?
+
+    init(order: Int, targetLaps: Int = 1, route: Route? = nil) {
+        self.order = order
+        self.targetLaps = targetLaps
+        self.route = route
+    }
+}
+
+// MARK: - SurgeSession (a day's collection of workouts)
+
+@Model
+final class SurgeSession {
+    /// User-editable label (auto-named on creation, e.g. "Morning · Jun 20").
+    var name: String
+    /// The day this surge session belongs to, anchored to the start of that day.
+    var date: Date
+    /// When this surge session was created (used for start-time display + sort).
+    var createdAt: Date
+    /// The plan template this surge session was instantiated from, if any.
+    var plan: Plan?
+
+    @Relationship(deleteRule: .nullify, inverse: \Session.surgeSession)
+    var sessions: [Session] = []
+
+    init(name: String, date: Date, createdAt: Date = Date()) {
+        self.name = name
+        self.date = date
+        self.createdAt = createdAt
+    }
+
+    var sortedSessions: [Session] {
+        sessions.sorted { $0.startedAt < $1.startedAt }
+    }
+
+    var totalDurationSeconds: TimeInterval? {
+        let durations = sessions.compactMap(\.durationSeconds)
+        guard !durations.isEmpty else { return nil }
+        return durations.reduce(0, +)
+    }
+
+    var totalDistanceMeters: Double {
+        sessions.map(\.distanceMeters).reduce(0, +)
+    }
+
+    /// Auto-name based on the time of day, e.g. "Morning · Jun 20".
+    static func autoName(for date: Date = Date()) -> String {
+        let hour = Calendar.current.component(.hour, from: date)
+        let timeOfDay: String
+        switch hour {
+        case 0..<5: timeOfDay = "Late Night"
+        case 5..<11: timeOfDay = "Morning"
+        case 11..<14: timeOfDay = "Midday"
+        case 14..<17: timeOfDay = "Afternoon"
+        case 17..<21: timeOfDay = "Evening"
+        default: timeOfDay = "Night"
+        }
+        return "\(timeOfDay) · \(date.formatted(.dateTime.month().day()))"
+    }
+}
+
 // MARK: - RouteSegment (a leg between turnarounds)
 
 @Model
@@ -155,6 +243,7 @@ final class Session {
     /// Timestamps marking the completion of each lap, in order. Empty for legacy single-lap sessions.
     var lapCompletedAt: [Date] = []
     var route: Route?
+    var surgeSession: SurgeSession?
 
     @Relationship(deleteRule: .cascade, inverse: \SessionPoint.session)
     var points: [SessionPoint] = []

@@ -163,6 +163,197 @@ Without this, `requestWhenInUseAuthorization()` is a no-op and the app silently 
 - Camera is auto-centered on the start point once on first appearance (~150 m square region), then the user can pan/zoom freely. A `MapUserLocationButton` is available to recenter on themselves.
 - Map is **only shown in the gate state** — during the active session it collapses back to the timer/distance view so the user focuses on running, not the screen.
 
+### Iteration 9 — TabView + tie-safe badges + name truncation (✅ shipped)
+
+Three changes that move the app from a flat single-screen toolbar to a proper iOS layout, plus two small data-correctness fixes.
+
+#### TabView shell with center CTA
+
+`ContentView` is now a thin `TabView` shell with three tab items:
+| Tag | Content | Tab item |
+|---|---|---|
+| 0 | `RoutesHomeView` (was the bulk of old ContentView, minus calendar) | "Routes" · `figure.run` |
+| 1 | Action-only (`Color.clear`) | "Create" · `plus.circle.fill` — sits visually in the center |
+| 2 | `SessionsHomeView` (NavigationStack + `CalendarHomeView`) | "Sessions" · `calendar` |
+
+The middle tab doesn't navigate. Selecting it triggers `showingCreateRoute = true` (presenting `CreateRouteView`) and then immediately reverts `selectedTab` to `lastValidTab`. Net effect: the "+" feels like a proper CTA button that drops the user into route creation regardless of which tab they were on.
+
+The Create Route sheet is hoisted up to `ContentView` so it works from any tab. The empty-state CTA inside `RoutesHomeView` uses the same binding (`@Binding var showingCreateRoute: Bool`), so there's only one sheet trigger source of truth.
+
+#### Side effects of the tab restructure
+
+- `HomeViewMode` dropped `.calendar` (now its own tab). The Routes tab's leading toolbar button reverted to a simple single-button toggle between map and list (no Menu picker needed for two options).
+- The Routes tab's primary-action "+" toolbar item was **removed** — the create CTA lives in the tab bar now.
+- `SessionsHomeView` is a thin wrapper around `CalendarHomeView` providing its own NavigationStack and the `navigationDestination(for: SurgeSession.self)` registration. Each tab owns its navigation independently.
+
+#### Tie-safe badge colors
+
+The previous gradient used `rank / (total - 1)`, so three routes tied at "1 session" each rendered as green / amber / red — wrong. Fixed with a per-render `badgeColors()` pass:
+
+```swift
+for each route in display order:
+    if value == previousValue: use previousColor
+    else:                       use gradientColor(rank: i, total: n)
+```
+
+Implemented via `sortValue(for: route)` (`Double` — meters for distance sorts, session count for frequency). The pass also handles the unavailable case (no `userCoordinate`, no `startCoordinate`) by emitting `systemGray3` and resetting the tie tracker so the next non-unavailable run starts a fresh color thread.
+
+Examples after the fix:
+- 3 routes all used 1× → **all green**.
+- Sessions counts `[5, 5, 2, 1, 1]` → green, green, amber-ish, red-ish, red-ish.
+- Distances `[10 m, 20 m, 30 m]` → unchanged from before (green / amber / red), since none tie.
+
+#### Route name truncation in compact rows
+
+Long names like *"Hamill Park east lap with the loop around the playground"* were blowing out row layouts. A small file-private helper `truncatedRouteName(_:limit:)` clamps the displayed name to **16 characters**, appending `…`. Applied to:
+- `RoutesHomeView.routeRow` (list view)
+- `ClusterSheet` rows
+
+Detail views (`RouteDetailView` title, `EditRouteView`, `RoutePeekSheet`, `SessionRecordingView`) keep the full name — truncation is row-only.
+
+### Iteration 8 — Surge Sessions + calendar (✅ shipped)
+
+Adds a day-level workout container above the route execution. **HYROX involves 8 functional exercises** (rowing, lunges, etc.) and a typical training day combines multiple efforts on multiple routes — a single `Session` per route isn't enough granularity to roll a day up coherently.
+
+#### Mental model
+
+```
+SurgeSession (a day's workout — Jun 20)
+├── Session  (3-lap run on Backyard 1k @ 7:15 am)
+├── Session  (1-lap run on Boardwalk @ 7:32 am)
+└── Session  (future: rowing, lunges, etc.)
+```
+
+`Session` keeps its existing meaning (one execution of one `Route`). `SurgeSession` is the new day container — designed to also hold non-run exercises in future iterations.
+
+#### Naming
+
+The user's term *"surge session"* is the day container. The pre-existing `Session` (route execution) was **deliberately not renamed** because future non-run exercises will share that `Session` type (or sit alongside it).
+
+#### Data model (`Item.swift`)
+
+- `SurgeSession` (`name`, `date`, `createdAt`, `sessions: [Session]`).
+  - `date` is **anchored to `startOfDay`** so "today" comparisons can use `Calendar.isDate(_:inSameDayAs:)`.
+  - `name` is auto-generated at creation via `SurgeSession.autoName(for:)` — picks a time-of-day prefix (*"Morning"*, *"Midday"*, *"Afternoon"*, *"Evening"*, *"Night"*, *"Late Night"*) and appends the formatted month/day. Editable later.
+  - Aggregates: `sortedSessions`, `totalDurationSeconds`, `totalDistanceMeters`.
+- `Session.surgeSession: SurgeSession?` — new optional reverse relationship. Enforced non-nil at creation time in `SessionRecordingView.saveSession()` (the picker guarantees a `SurgeSession` is selected before recording begins).
+- **No backward-compat migration**: per user direction, this iteration assumes the data store can be wiped. Existing pre-iteration-8 builds will need to delete + reinstall the app rather than have the new schema accommodate orphan sessions.
+
+#### Required attachment flow
+
+Tapping **Start Session** on `RouteDetailView` no longer pushes `SessionRecordingView` directly. Instead it presents `SurgeSessionPickerSheet`:
+
+- Top row: **+ New Surge Session** (creates a `SurgeSession` with `autoName(for: now)` and `date: startOfDay(now)`, inserts it, and immediately selects it).
+- Below: a list of all **today's** surge sessions (filtered via `Calendar.isDate(_:inSameDayAs:)` against `Date()`).
+- An empty-day shows guidance text pointing to the **+ New** button.
+
+After selection, the sheet sets `pendingSurge` and dismisses. The view's `onDismiss:` handler then sets `recordingSurge`, triggering `.navigationDestination(item:)` to push `SessionRecordingView(route:, surgeSession:)` with both anchors. This avoids the SwiftUI sheet+navigation race the rest of the app deals with the same way.
+
+`SessionRecordingView.saveSession()` now sets both sides of the relationship (`session.surgeSession = surgeSession` + appending to `surgeSession.sessions`).
+
+#### Calendar mode
+
+A third home view mode joins map and list. The toolbar's leading button is now a `Menu` (was a single toggle) with a `Picker` over `HomeViewMode.allCases` so all three options are visible.
+
+`CalendarHomeView`:
+- A graphical `DatePicker(displayedComponents: .date)` at the top — fully scrollable month view.
+- Below it, a `List` section showing `SurgeSession`s whose `date` matches the picker's selection (via `Calendar.isDate(_:inSameDayAs:)`), or *"No surge sessions on this day."* when empty.
+- Each row shows the surge session's name, started time, session count, and total active time.
+- Tapping a row pushes `SurgeSessionDetailView` via `navigationDestination(for: SurgeSession.self)` registered on the home `NavigationStack`.
+
+#### SurgeSessionDetailView
+
+- "Surge Session" section: editable name `TextField` (auto-saves via `@Bindable`), read-only date, started time, session count, total active time, total distance.
+- "Sessions" section: each `Session` shown with its route name, start time, duration, and lap count. Tapping pushes the existing `SessionDetailView`.
+- Swipe-to-delete removes individual sessions from the surge session (cascades naturally — they're deleted from the route side too via the same relationship).
+- "Delete Surge Session" row at the bottom (red, with confirmation) — deletes only the surge session record. The underlying `Session`s remain attached to their routes because the relationship uses `.nullify` (not `.cascade`) — surge sessions are a metadata grouping, not the owner of the work.
+
+### Iteration 7 — Pin clustering + sortable list (✅ shipped)
+
+Two distinct improvements layered onto the iteration-6 home screen.
+
+#### Pin clustering on the map
+
+Routes whose start points fall within **100 m of each other** collapse into a single **cluster pin** that displays the count. Tapping a cluster opens a sheet that lists the routes; tapping one of them drops into the existing `RoutePeekSheet` for that route.
+
+- New types in `ContentView.swift`:
+  - `RouteCluster { routes: [Route], coordinate: CLLocationCoordinate2D }` — a stable group, with a deterministic `id` built from sorted persistent IDs of its members so SwiftUI's `ForEach` doesn't tear down annotations across redraws.
+  - `RouteClusterSelection` — a small `Identifiable` wrapper so the cluster sheet can be driven by `.sheet(item:)`.
+- `clusterRoutes(_:withinMeters:)` is a top-level function performing **single-link connected-components** clustering via BFS: A is grouped with B if they're within the threshold, and transitively with C if B and C are within the threshold (even if A and C aren't). O(n²) — fine for the small route counts we expect.
+- A cluster's pin coordinate is the **centroid** of its member start points so the pin doesn't visually favor one route.
+- Visual:
+  - Single-route cluster → existing `startPin` (white circle, green flag).
+  - Multi-route cluster → larger green-circle-on-white badge with the count in heavy rounded text.
+- Tap dispatch (`tapped(_:)`):
+  - Singleton → `peekRoute = route` (existing peek sheet).
+  - Multi → `clusterPeek = RouteClusterSelection(routes:)`, opens the new `ClusterSheet`.
+- `ClusterSheet` is a list with `route.name`, distance, and session count per row. Selecting a row sets `pendingPeek = route`, dismisses the sheet, and `handleClusterDismiss()` then promotes it to `peekRoute` — same deferred-dismiss pattern used elsewhere to avoid sheet+navigation race conditions.
+
+#### Sort badge per row (rank-colored)
+
+Each row in the list view now has a **leading 64×48 rounded badge** that displays the sort value for that row, colored on a green→amber→red gradient by its rank in the sorted list.
+
+- Value shown:
+  - **Distance From You** → distance to start, formatted (`"10 m"`, `"1.2 km"`).
+  - **Most Frequently Used** → session count with `x` suffix (`"3x"`).
+  - **Lap Distance** → loop length, formatted (`"50 m"`, `"1 km"`).
+- Color is a **3-stop linear interpolation** between three RGB stops at `t=0`, `t=0.5`, `t=1` where `t = rank / (total - 1)`:
+  - Green `(0.20, 0.70, 0.30)` at the top of the sort.
+  - Amber `(0.95, 0.70, 0.10)` at the midpoint — covers "yellow/orange" without locking into a single hue.
+  - Red `(0.85, 0.20, 0.20)` at the bottom.
+- **Single-row list** is fully green (no gradient to compute).
+- **Unavailable badges** (e.g. "Distance From You" sorted but no user location, or no `startCoordinate`) render as **system grey** with `"—"` so the row is still informative.
+- Fixed-width badge so the digits line vertically down the list; `minimumScaleFactor(0.7)` to gracefully shrink long values like `"1.2 km"`.
+- The previous redundant inline "X away" label was removed from row metadata — the badge supersedes it.
+
+#### Sortable list view
+
+The list mode now shows a prominent sort pill above the list — *"Sorted by: <current sort>"* with a chevron. Tapping it opens a `Menu` `Picker` of three options:
+
+| Sort | Behavior |
+|---|---|
+| **Distance From You** | Ascending by haversine distance from `userCoordinate` to each route's `startCoordinate`. Routes without a start coordinate sort to the bottom (distance `.infinity`). If location is unavailable, falls back to the default query order and an orange warning triangle appears next to the pill. |
+| **Most Frequently Used** | Descending by `route.sessions.count`. Ties broken by `createdAt` descending. |
+| **Lap Distance** | Ascending by `route.distanceMeters` (shortest first). |
+
+- `sort: RouteSort` is local view `@State` (not persisted across launches — change preference here if you want it sticky).
+- When sorted by **Distance From You**, each row gains a third inline label like *"123 m away"* so the sort criterion is reinforced in the data, not just the header.
+- `onDelete` was updated to map the displayed `IndexSet` (against `sortedRoutes`) back to the model objects before calling `modelContext.delete(_:)` — otherwise swipe-to-delete would target wrong items when sorted.
+
+### Iteration 6 — Map-based home screen (✅ shipped)
+
+The home screen is now a map of your training area instead of a list. Your routes appear as start-gate pins, and tapping one offers a quick *Use / Edit* choice.
+
+**New views**:
+- `RoutePeekSheet` — compact bottom sheet (`.presentationDetents([.height(240)])`) shown when the user taps a pin. Title is the route name, subtitle is *"Loop distance · N sessions · M segments"*. Two large capsule buttons: **Use Route** (green, play icon) and **Edit Route** (grey, pencil icon).
+- `EditRouteView` — scoped to **rename + delete**. Anything heavier (re-recording the path, editing segments) is deliberately out of scope. The form shows read-only stats (distance, segments, sessions, created date) so the user has context while deciding to delete.
+
+**`ContentView` rewrite**:
+- Two modes: `.map` (default) and `.list`. A toolbar button in the leading position toggles between them (`map.fill` / `list.bullet` icon).
+- **Map mode**:
+  - `Map(position: $cameraPosition)` with `.mapStyle(.standard(elevation: .flat))`.
+  - One `Annotation` per route at its `startCoordinate`, rendered as a green-flag-in-white-circle pin (same visual language as the in-session start gate).
+  - The pin is wrapped in a `Button` so taps reliably set `peekRoute`.
+  - `UserAnnotation()` for the blue dot.
+  - `MapUserLocationButton` + `MapCompass` in `.mapControls`.
+- **List mode**: the previous list UI, intact.
+- **Empty state** (`routes.isEmpty`): `ContentUnavailableView` with a **"Create Route"** prominent bordered button — no toggle is shown because mode is irrelevant.
+
+**Initial camera positioning**:
+- On appear, `tracker.requestSingleLocation()` is called — a lightweight one-shot fix (via `CLLocationManager.requestLocation()`) rather than continuous streaming, since the home screen doesn't need a live feed.
+- When the location arrives, `centerOnUserIfNeeded()` sets `cameraPosition = .region(...)` centered on the user with a **3 km** square extent (`latitudinalMeters: 3000, longitudinalMeters: 3000`). The `didCenterOnUser` flag prevents repeated recentering if the user pans the map.
+- Before the location resolves, the camera shows a wide fallback region (continental US-ish) so the map isn't blank.
+
+**Location denied / unavailable**:
+- A semi-transparent **black overlay** covers the map with `location.slash.fill` icon, *"Location Unavailable"* title, an explanation, and a white **"Switch to List View"** capsule button.
+- The overlay is also tappable (its `Rectangle` content shape catches taps anywhere) — tapping switches to list mode. This matches the user's spec: *"It greys out the screen and allows the user to press the map to see the list view (or recommends user to switch to the list view)."*
+
+**Sheet → navigation pattern**:
+- Directly pushing a NavigationStack destination from inside a sheet's button handler is unreliable in SwiftUI. The peek sheet uses a deferred pattern: it sets `pendingOpen` or `pendingEdit`, then dismisses itself. The sheet's `onDismiss:` closure (`handlePeekDismiss()`) then either `path.append(route)` (for Use) or sets `editingRoute = route` (for Edit). This avoids the sheet+navigation race.
+
+**`LocationTracker` addition**:
+- `requestSingleLocation()` — handles the not-determined case by storing a `pendingSingleLocation` flag, then issuing the request from `locationManagerDidChangeAuthorization(_:)` once auth resolves. Already-authorized callers fire `manager.requestLocation()` immediately.
+
 ### Iteration 5 — Segments + turnaround alerts (✅ shipped)
 
 The boardwalk problem: an out-and-back loop has no natural visual cue for *"turn around now"*. Without one, the user either runs too far or stops too early and the lap data is junk. Iteration 5 introduces **segments** to solve this.
@@ -222,6 +413,13 @@ A single HYROX session is often multiple 1k laps. Before iteration 4, every sess
 
 ### Possible next steps
 
+- **Non-run exercises inside a Surge Session** — HYROX has 8 functional exercises (rowing, lunges, sled push/pull, burpees, etc.). Probably a new `Exercise` protocol or a separate `ExerciseRecord` model holding type + duration + reps, attached to a `SurgeSession` the same way `Session` is.
+- **Default surge session for today** — auto-select the most recent surge session for today if one exists, instead of showing the picker. Reduces a tap when doing back-to-back runs.
+- **Calendar day badges** — visual dots/colors on days that have surge sessions so the user can scan a month at a glance. The graphical `DatePicker` doesn't support this natively; would need a custom calendar grid.
+- **Persist sort preference** across launches (currently `RouteSort` is view-local `@State`).
+- **Zoom-aware clustering threshold** — currently a flat 100 m real-world distance regardless of zoom level. At very tight zooms, pins that are 80 m apart could fairly be shown separately.
+- **"Fit all routes" button** that adjusts the camera to a region encompassing every route.
+- **Sort list by best lap time** for analysis-first use of the list view.
 - **Lap-complete haptic + overlay** mirroring the turnaround alert (different color, "LAP DONE" text).
 - **Custom segment labels** — let the user name turnarounds during creation (e.g. "Bench", "Tree", "Lifeguard stand").
 - **Audible cues** in addition to haptic + visual (system sound or spoken "turn around").

@@ -2,48 +2,73 @@
 //  CreateRouteView.swift
 //  surge15
 //
-//  One-time setup: walk or run a loop to define a Route template.
-//  While recording, the user can tap "Mark Turnaround" each time they reach a
-//  point where, during a session, they should be told to change direction.
-//  Each turnaround ends one segment and starts the next.
+//  One-time setup: walk a loop to define a Route template.
+//  Live map shows the walked path; tapping "Mark Turnaround" drops a green pin.
 //
 
 import SwiftUI
 import SwiftData
 import CoreLocation
+import MapKit
 
 struct CreateRouteView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+
     @State private var tracker = LocationTracker()
+    @State private var cameraPosition: MapCameraPosition = .userLocation(fallback: .automatic)
+
+    @State private var isRecording = false
+    /// Initially true so the overlay covers the screen the instant the view loads.
+    /// Flipped false after a short delay in `onAppear` so the GPS has time to settle.
+    @State private var isAcquiringGPS = true
+    @State private var recordingStartIndex = 0
+
+    private let acquiringDelaySeconds: Double = 2.5
+
+    /// Cumulative recorded distance at the moment the user tapped "Mark Turnaround".
+    @State private var segmentBoundaries: [Double] = []
+    /// Coordinates corresponding to each segment boundary, for map pin display.
+    @State private var turnaroundCoordinates: [CLLocationCoordinate2D] = []
+
     @State private var showingSavePrompt = false
     @State private var showingTooShortAlert = false
     @State private var routeName = ""
-    /// Cumulative recorded distance at the moment the user tapped "Mark Turnaround".
-    @State private var segmentBoundaries: [Double] = []
 
     private let minimumDistanceMeters: Double = 10
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                instructions
-                statusBlock
-                Spacer()
-                if tracker.isRecording {
-                    markTurnaroundButton
+            ZStack {
+                VStack(spacing: 12) {
+                    mapView
+                        .frame(minHeight: 320, maxHeight: .infinity)
+
+                    if !turnaroundCoordinates.isEmpty {
+                        turnaroundPills
+                    }
+
+                    if isRecording {
+                        markTurnaroundButton
+                    }
+
+                    recordButton
+
+                    authorizationFootnote
                 }
-                recordButton
-                authorizationFootnote
-                Spacer()
+                .padding()
+
+                if isAcquiringGPS {
+                    acquiringOverlay
+                        .transition(.opacity)
+                }
             }
-            .padding()
             .navigationTitle("New Route")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        if tracker.isRecording { tracker.stop() }
+                        isRecording = false
                         dismiss()
                     }
                 }
@@ -60,76 +85,94 @@ struct CreateRouteView: View {
             } message: {
                 Text("A route must be at least \(Int(minimumDistanceMeters)) m. You captured \(Formatters.distance(currentDistance)). Tap Start to try again.")
             }
-            .onAppear { tracker.requestAuthorization() }
-        }
-    }
-
-    private var instructions: some View {
-        Text("Walk or run your loop once. Tap **Mark Turnaround** every time you reach a point where you'll need to change direction during a session.")
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
-            .padding(.horizontal)
-    }
-
-    private var statusBlock: some View {
-        VStack(spacing: 8) {
-            Text(tracker.isRecording ? "Recording loop…" : "Ready")
-                .font(.title3)
-                .foregroundStyle(.secondary)
-            Text(Formatters.distance(currentDistance))
-                .font(.system(size: 56, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(meetsMinimum ? .primary : .secondary)
-            HStack(spacing: 6) {
-                Image(systemName: meetsMinimum ? "checkmark.circle.fill" : "circle.dashed")
-                    .foregroundStyle(meetsMinimum ? .green : .secondary)
-                Text("Minimum \(Int(minimumDistanceMeters)) m")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            .onAppear {
+                tracker.requestAuthorization()
+                if !tracker.isRecording {
+                    tracker.start()
+                }
+                // Let the GPS settle for a couple seconds before showing UI to the user.
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(acquiringDelaySeconds))
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        isAcquiringGPS = false
+                    }
+                }
             }
-            segmentSummary
-        }
-    }
-
-    @ViewBuilder
-    private var segmentSummary: some View {
-        let segmentCount = segmentBoundaries.count + 1
-        let labels = previewSegmentDistances.enumerated().map { idx, dist in
-            "S\(idx + 1): \(Formatters.distance(dist))"
-        }
-        VStack(spacing: 4) {
-            Text("\(segmentCount) segment\(segmentCount == 1 ? "" : "s")")
-                .font(.caption.bold())
-                .foregroundStyle(.secondary)
-            if !labels.isEmpty {
-                Text(labels.joined(separator: " · "))
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+            .onDisappear {
+                tracker.stop()
             }
         }
-        .padding(.top, 4)
     }
 
-    /// Distances of each segment captured so far (including the in-progress segment).
-    private var previewSegmentDistances: [Double] {
-        var prev: Double = 0
-        var result: [Double] = []
-        for boundary in segmentBoundaries {
-            result.append(boundary - prev)
-            prev = boundary
+    // MARK: - Map
+
+    private var mapView: some View {
+        Map(position: $cameraPosition) {
+            if recordedCoordinates.count >= 2 {
+                MapPolyline(coordinates: recordedCoordinates)
+                    .stroke(Color.blue, lineWidth: 4)
+            }
+
+            ForEach(Array(turnaroundCoordinates.enumerated()), id: \.offset) { idx, coord in
+                Annotation("T\(idx + 1)", coordinate: coord) {
+                    turnaroundPin
+                }
+            }
+
+            UserAnnotation()
         }
-        result.append(max(0, currentDistance - prev))
-        return result
+        .mapStyle(.standard(elevation: .flat))
+        .mapControls {
+            MapUserLocationButton()
+            MapCompass()
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(alignment: .topLeading) {
+            distancePill
+                .padding(12)
+        }
     }
 
-    private var currentDistance: Double {
-        Route.totalDistance(coordinates: tracker.recordedLocations.map(\.coordinate))
+    private var distancePill: some View {
+        Text(Formatters.distance(currentDistance))
+            .font(.system(.title2, design: .rounded, weight: .heavy))
+            .monospacedDigit()
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Color.black.opacity(0.72), in: Capsule())
     }
 
-    private var meetsMinimum: Bool {
-        currentDistance >= minimumDistanceMeters
+    private var turnaroundPin: some View {
+        ZStack {
+            Circle()
+                .fill(.white)
+                .frame(width: 30, height: 30)
+                .shadow(radius: 2)
+            Image(systemName: "arrow.uturn.backward")
+                .foregroundStyle(.green)
+                .font(.system(size: 15, weight: .heavy))
+        }
+    }
+
+    private var turnaroundPills: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Array(turnaroundCoordinates.enumerated()), id: \.offset) { idx, _ in
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.uturn.backward")
+                            .font(.caption2.weight(.heavy))
+                        Text("T\(idx + 1)")
+                            .font(.caption.bold())
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.green.opacity(0.2), in: Capsule())
+                    .foregroundStyle(.green)
+                }
+            }
+            .padding(.horizontal, 4)
+        }
     }
 
     private var markTurnaroundButton: some View {
@@ -144,30 +187,47 @@ struct CreateRouteView: View {
                 .background(Color.orange, in: Capsule())
         }
         .buttonStyle(.plain)
-        .disabled(currentDistance < minimumDistanceMeters || currentDistance <= (segmentBoundaries.last ?? 0))
+        .disabled(!canMarkTurnaround)
     }
 
     private var recordButton: some View {
         Button {
-            if tracker.isRecording {
-                tracker.stop()
+            if isRecording {
+                stopRecording()
                 if meetsMinimum {
                     showingSavePrompt = true
                 } else {
                     showingTooShortAlert = true
                 }
             } else {
-                segmentBoundaries.removeAll()
-                tracker.start()
+                startRecording()
             }
         } label: {
-            Text(tracker.isRecording ? "Stop" : "Start")
+            Text(isRecording ? "Stop" : "Start")
                 .font(.title.bold())
                 .foregroundStyle(.white)
-                .frame(width: 180, height: 180)
-                .background(tracker.isRecording ? Color.red : Color.green, in: Circle())
+                .frame(width: 160, height: 160)
+                .background(isRecording ? Color.red : Color.green, in: Circle())
         }
         .buttonStyle(.plain)
+        .disabled(isAcquiringGPS)
+    }
+
+    private var acquiringOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.7).ignoresSafeArea()
+            VStack(spacing: 18) {
+                ProgressView()
+                    .scaleEffect(1.5)
+                    .tint(.white)
+                Text("Acquiring GPS Location")
+                    .font(.title2.bold())
+                    .foregroundStyle(.white)
+                Text("Hang tight for a moment…")
+                    .font(.callout)
+                    .foregroundStyle(.white.opacity(0.85))
+            }
+        }
     }
 
     @ViewBuilder
@@ -183,10 +243,51 @@ struct CreateRouteView: View {
         }
     }
 
+    // MARK: - Derived
+
+    private var recordedLocations: [CLLocation] {
+        guard recordingStartIndex <= tracker.recordedLocations.count else { return [] }
+        return Array(tracker.recordedLocations.dropFirst(recordingStartIndex))
+    }
+
+    private var recordedCoordinates: [CLLocationCoordinate2D] {
+        recordedLocations.map(\.coordinate)
+    }
+
+    private var currentDistance: Double {
+        Route.totalDistance(coordinates: recordedCoordinates)
+    }
+
+    private var meetsMinimum: Bool {
+        currentDistance >= minimumDistanceMeters
+    }
+
+    private var canMarkTurnaround: Bool {
+        isRecording
+        && currentDistance >= minimumDistanceMeters
+        && currentDistance > (segmentBoundaries.last ?? 0)
+    }
+
+    // MARK: - Actions
+
+    private func startRecording() {
+        segmentBoundaries = []
+        turnaroundCoordinates = []
+        recordingStartIndex = tracker.recordedLocations.count
+        isRecording = true
+    }
+
+    private func stopRecording() {
+        isRecording = false
+    }
+
     private func markTurnaround() {
         let haptic = UIImpactFeedbackGenerator(style: .medium)
         haptic.impactOccurred()
         segmentBoundaries.append(currentDistance)
+        if let last = tracker.recordedLocations.last?.coordinate {
+            turnaroundCoordinates.append(last)
+        }
     }
 
     private func saveAndDismiss() {
@@ -194,7 +295,6 @@ struct CreateRouteView: View {
         let route = Route(name: trimmed.isEmpty ? "Untitled Route" : trimmed)
         let total = currentDistance
 
-        // Build segments from the captured boundaries (+ implicit final segment).
         var prev: Double = 0
         for (idx, boundary) in segmentBoundaries.enumerated() {
             let segment = RouteSegment(
@@ -212,8 +312,7 @@ struct CreateRouteView: View {
         )
         route.segments.append(lastSegment)
 
-        // Store the GPS trace for visualization.
-        for location in tracker.recordedLocations {
+        for location in recordedLocations {
             let point = RoutePoint(
                 timestamp: location.timestamp,
                 latitude: location.coordinate.latitude,
