@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import MapKit
 
 struct RoutePeekSheet: View {
     let route: Route
@@ -14,54 +15,87 @@ struct RoutePeekSheet: View {
     let onEdit: () -> Void
 
     var body: some View {
-        VStack(spacing: 18) {
-            VStack(spacing: 6) {
-                Text(route.name)
-                    .font(.title2.bold())
-                    .multilineTextAlignment(.center)
-                Text(metadataLine)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        VStack(spacing: 14) {
+            routePreviewMap
+                .padding(.horizontal, 20)
+
+            HStack(spacing: 10) {
+                distanceBox
+                goButton
+                editButton
             }
-            .padding(.top, 8)
-
-            Spacer(minLength: 4)
-
-            VStack(spacing: 10) {
-                Button(action: onUse) {
-                    Label("Use Route", systemImage: "play.fill")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color.green, in: Capsule())
-                        .foregroundStyle(.white)
-                }
-                .buttonStyle(.plain)
-
-                Button(action: onEdit) {
-                    Label("Edit Route", systemImage: "pencil")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color(.secondarySystemBackground), in: Capsule())
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 12)
+            .padding(.horizontal, 20)
         }
-        .presentationDetents([.height(240)])
+        .padding(.vertical, 20)
+        .presentationDetents([.height(450)])
         .presentationDragIndicator(.visible)
     }
 
-    private var metadataLine: String {
-        let distance = Formatters.distance(route.distanceMeters)
-        let sessions = "\(route.sessions.count) session\(route.sessions.count == 1 ? "" : "s")"
-        let segments = route.segments.count
-        if segments > 1 {
-            return "\(distance) · \(sessions) · \(segments) segments"
+    private var routePreviewMap: some View {
+        Map(initialPosition: .automatic, interactionModes: []) {
+            if route.definitionPoints.count >= 2 {
+                MapPolyline(coordinates: route.sortedDefinitionPoints.map(\.coordinate))
+                    .stroke(Color.blue, lineWidth: 4)
+            }
+            if let start = route.startCoordinate {
+                Annotation("", coordinate: start) {
+                    ZStack {
+                        Circle()
+                            .fill(.white)
+                            .frame(width: 18, height: 18)
+                            .shadow(radius: 1)
+                        Image(systemName: "flag.fill")
+                            .foregroundStyle(.green)
+                            .font(.system(size: 9, weight: .heavy))
+                    }
+                }
+            }
         }
-        return "\(distance) · \(sessions)"
+        .mapStyle(.standard(elevation: .flat))
+        .frame(height: 320)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Color.secondary.opacity(0.25), lineWidth: 1)
+        )
+    }
+
+    private var distanceBox: some View {
+        Text(Formatters.distance(route.distanceMeters))
+            .font(.system(.title3, design: .rounded, weight: .heavy))
+            .monospacedDigit()
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .frame(maxWidth: .infinity, minHeight: 64)
+            .background(Color.blue, in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var goButton: some View {
+        Button(action: onUse) {
+            HStack(spacing: 6) {
+                Image(systemName: "play.fill")
+                Text("Go")
+            }
+            .font(.headline)
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, minHeight: 64)
+            .background(Color.green, in: RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var editButton: some View {
+        Button(action: onEdit) {
+            HStack(spacing: 6) {
+                Image(systemName: "pencil")
+                Text("Edit")
+            }
+            .font(.headline)
+            .frame(maxWidth: .infinity, minHeight: 64)
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
     }
 }
 
