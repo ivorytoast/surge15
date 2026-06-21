@@ -52,15 +52,27 @@ struct RouteDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             LabeledContent("Loop Distance", value: Formatters.distance(route.distanceMeters))
             LabeledContent("Sessions", value: "\(route.sessions.count)")
-            if let best = route.bestSessionDuration {
-                LabeledContent("Best Time", value: Formatters.duration(best))
+            if let best = route.bestLapDuration {
+                LabeledContent("Best Lap", value: Formatters.duration(best))
             }
-            if let avg = route.averageSessionDuration {
-                LabeledContent("Average Time", value: Formatters.duration(avg))
+            if let avg = route.averageLapDuration {
+                LabeledContent("Average Lap", value: Formatters.duration(avg))
+            }
+            if !route.segments.isEmpty {
+                LabeledContent("Segments", value: segmentSummaryString)
             }
             LabeledContent("Created", value: route.createdAt.formatted(date: .abbreviated, time: .shortened))
         }
         .font(.callout)
+    }
+
+    private var segmentSummaryString: String {
+        let segs = route.sortedSegments
+        if segs.count == 1 {
+            return "1 (loop)"
+        }
+        let distances = segs.map { Formatters.distance($0.distanceMeters) }
+        return "\(segs.count) · \(distances.joined(separator: " → "))"
     }
 
     private func sessionRow(_ session: Session) -> some View {
@@ -71,7 +83,7 @@ struct RouteDetailView: View {
                 if let duration = session.durationSeconds {
                     Label(Formatters.duration(duration), systemImage: "clock")
                 }
-                Label(Formatters.distance(session.distanceMeters), systemImage: "ruler")
+                Label("\(session.targetLaps) \(session.targetLaps == 1 ? "lap" : "laps")", systemImage: "flag.checkered")
                 if let pace = session.paceSecondsPerKilometer {
                     Label(Formatters.pace(secondsPerKilometer: pace), systemImage: "speedometer")
                 }

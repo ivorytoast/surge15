@@ -20,6 +20,9 @@ final class Route {
     @Relationship(deleteRule: .cascade, inverse: \Session.route)
     var sessions: [Session] = []
 
+    @Relationship(deleteRule: .cascade, inverse: \RouteSegment.route)
+    var segments: [RouteSegment] = []
+
     init(name: String, createdAt: Date = Date()) {
         self.name = name
         self.createdAt = createdAt
@@ -33,22 +36,41 @@ final class Route {
         sessions.sorted { $0.startedAt > $1.startedAt }
     }
 
+    var sortedSegments: [RouteSegment] {
+        segments.sorted { $0.order < $1.order }
+    }
+
     var startCoordinate: CLLocationCoordinate2D? {
         sortedDefinitionPoints.first?.coordinate
     }
 
+    /// Total lap distance. Uses segments when present; otherwise falls back to the
+    /// raw GPS-trace length (legacy single-segment routes).
     var distanceMeters: Double {
-        Self.totalDistance(coordinates: sortedDefinitionPoints.map(\.coordinate))
+        if !segments.isEmpty {
+            return sortedSegments.map(\.distanceMeters).reduce(0, +)
+        }
+        return Self.totalDistance(coordinates: sortedDefinitionPoints.map(\.coordinate))
     }
 
-    var bestSessionDuration: TimeInterval? {
-        sessions.compactMap(\.durationSeconds).min()
+    /// Cumulative distance at the end of each segment. The last entry equals `distanceMeters`.
+    /// All but the last are "interior" boundaries that should trigger a turnaround alert.
+    var segmentEndDistances: [Double] {
+        var cumulative: Double = 0
+        return sortedSegments.map { seg in
+            cumulative += seg.distanceMeters
+            return cumulative
+        }
     }
 
-    var averageSessionDuration: TimeInterval? {
-        let durations = sessions.compactMap(\.durationSeconds)
-        guard !durations.isEmpty else { return nil }
-        return durations.reduce(0, +) / Double(durations.count)
+    var bestLapDuration: TimeInterval? {
+        sessions.flatMap(\.lapDurations).min()
+    }
+
+    var averageLapDuration: TimeInterval? {
+        let allLapDurations = sessions.flatMap(\.lapDurations)
+        guard !allLapDurations.isEmpty else { return nil }
+        return allLapDurations.reduce(0, +) / Double(allLapDurations.count)
     }
 
     static func totalDistance(coordinates: [CLLocationCoordinate2D]) -> Double {
@@ -96,6 +118,23 @@ final class RoutePoint {
     }
 }
 
+// MARK: - RouteSegment (a leg between turnarounds)
+
+@Model
+final class RouteSegment {
+    var order: Int
+    var distanceMeters: Double
+    /// What kind of boundary ends this segment ("Turnaround", "End", etc.).
+    var endLabel: String
+    var route: Route?
+
+    init(order: Int, distanceMeters: Double, endLabel: String) {
+        self.order = order
+        self.distanceMeters = distanceMeters
+        self.endLabel = endLabel
+    }
+}
+
 // MARK: - Geo helpers
 
 extension CLLocationCoordinate2D {
@@ -112,13 +151,17 @@ extension CLLocationCoordinate2D {
 final class Session {
     var startedAt: Date
     var endedAt: Date?
+    var targetLaps: Int = 1
+    /// Timestamps marking the completion of each lap, in order. Empty for legacy single-lap sessions.
+    var lapCompletedAt: [Date] = []
     var route: Route?
 
     @Relationship(deleteRule: .cascade, inverse: \SessionPoint.session)
     var points: [SessionPoint] = []
 
-    init(startedAt: Date = Date()) {
+    init(startedAt: Date = Date(), targetLaps: Int = 1) {
         self.startedAt = startedAt
+        self.targetLaps = targetLaps
     }
 
     var sortedPoints: [SessionPoint] {
@@ -138,6 +181,23 @@ final class Session {
     var paceSecondsPerKilometer: Double? {
         guard let duration = durationSeconds, distanceMeters > 0 else { return nil }
         return duration / (distanceMeters / 1000)
+    }
+
+    /// Durations per completed lap. Falls back to one "lap" equal to the session duration
+    /// for legacy sessions that pre-date lap tracking.
+    var lapDurations: [TimeInterval] {
+        if !lapCompletedAt.isEmpty {
+            var result: [TimeInterval] = []
+            var prev = startedAt
+            for ts in lapCompletedAt.sorted() {
+                result.append(ts.timeIntervalSince(prev))
+                prev = ts
+            }
+            return result
+        } else if let duration = durationSeconds {
+            return [duration]
+        }
+        return []
     }
 }
 

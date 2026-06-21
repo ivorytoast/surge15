@@ -17,13 +17,28 @@ struct SessionDetailView: View {
                     LabeledContent("Ended", value: ended.formatted(date: .abbreviated, time: .shortened))
                 }
                 if let duration = session.durationSeconds {
-                    LabeledContent("Duration", value: Formatters.duration(duration))
+                    LabeledContent("Total Time", value: Formatters.duration(duration))
                 }
+                LabeledContent("Laps", value: "\(session.targetLaps)")
                 LabeledContent("Distance", value: Formatters.distance(session.distanceMeters))
                 if let pace = session.paceSecondsPerKilometer {
                     LabeledContent("Pace", value: Formatters.pace(secondsPerKilometer: pace))
                 }
                 LabeledContent("Points", value: "\(session.points.count)")
+            }
+
+            if session.lapDurations.count > 1 {
+                Section("Lap Times") {
+                    ForEach(Array(session.lapDurations.enumerated()), id: \.offset) { idx, dur in
+                        HStack {
+                            Text("Lap \(idx + 1)")
+                            Spacer()
+                            Text(Formatters.duration(dur))
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }
 
             Section("Points") {

@@ -14,6 +14,7 @@ struct surge15App: App {
         let schema = Schema([
             Route.self,
             RoutePoint.self,
+            RouteSegment.self,
             Session.self,
             SessionPoint.self,
         ])
