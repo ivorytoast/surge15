@@ -75,6 +75,7 @@ struct ContentView: View {
     @State private var selectedTab: Int = 0
     @State private var lastValidTab: Int = 0
     @State private var sessionsPath = NavigationPath()
+    @State private var showingSurgeDetail = false
 
     // Tab tags. The blue bolt sits dead-center.
     private let routesTab = 0
@@ -83,17 +84,26 @@ struct ContentView: View {
     private let sessionsTab = 3
     private let settingsTab = 4
 
-    /// SF Symbol rendered with an explicit blue tint that the tab bar won't re-tint
-    /// to grey when the item is unselected. UIImage's `.alwaysOriginal` rendering
-    /// mode is what bypasses the system's automatic tint coloring.
+    /// SF Symbol with a fixed blue tint (bypasses the tab bar's automatic re-tinting).
     private static let surgeTabIcon: UIImage = {
         UIImage(systemName: "bolt.fill")?
             .withTintColor(.systemBlue, renderingMode: .alwaysOriginal) ?? UIImage()
     }()
 
-    /// True when there is an unexpired surge session — the next started workout will attach to it.
+    /// Same icon but red — shown while a surge session is active.
+    private static let surgingTabIcon: UIImage = {
+        UIImage(systemName: "bolt.fill")?
+            .withTintColor(.systemRed, renderingMode: .alwaysOriginal) ?? UIImage()
+    }()
+
+    /// True when there is an unexpired surge session.
     private var hasCurrentSurge: Bool {
         allSurgeSessions.contains { $0.isCurrent }
+    }
+
+    /// The active surge session, if one exists.
+    private var currentSurgeSession: SurgeSession? {
+        allSurgeSessions.first { $0.isCurrent }
     }
 
     var body: some View {
@@ -110,14 +120,13 @@ struct ContentView: View {
                 }
                 .tag(planTab)
 
-            // Action-only middle tab. "Surging" while there's an active surge session
-            // (taps jump to its detail); "Surge" otherwise (taps pop to Routes).
+            // Action-only middle tab — always redirects, never holds content.
             Color.clear
                 .tabItem {
                     Label {
                         Text(hasCurrentSurge ? "Surging" : "Surge")
                     } icon: {
-                        Image(uiImage: Self.surgeTabIcon)
+                        Image(uiImage: hasCurrentSurge ? Self.surgingTabIcon : Self.surgeTabIcon)
                     }
                 }
                 .tag(surgeTab)
@@ -134,6 +143,19 @@ struct ContentView: View {
                 }
                 .tag(settingsTab)
         }
+        .tint(hasCurrentSurge ? .red : .accentColor)
+        .toolbarBackground(hasCurrentSurge ? Color.red.opacity(0.12) : Color(.systemBackground).opacity(0), for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
+        .sheet(isPresented: $showingSurgeDetail) {
+            if let surge = currentSurgeSession {
+                NavigationStack {
+                    SurgeSessionDetailView(surgeSession: surge)
+                }
+            }
+        }
+        .onChange(of: hasCurrentSurge) { _, isActive in
+            if !isActive { showingSurgeDetail = false }
+        }
         .onChange(of: selectedTab) { _, new in
             if new == surgeTab {
                 handleSurgeTap()
@@ -147,13 +169,16 @@ struct ContentView: View {
     // MARK: - Surge tab CTA
 
     private func handleSurgeTap() {
-        if let current = SurgeSession.current(in: modelContext) {
-            jumpToSurgeDetail(current)
+        if hasCurrentSurge {
+            // Show the active surge as a sheet over whatever tab is current.
+            showingSurgeDetail = true
         } else {
-            // No active workout — bounce the user to Routes so they can pick one.
+            // No active surge — send the user to Routes to pick one.
             selectedTab = routesTab
             lastValidTab = routesTab
         }
+        // Always bounce the tab selection back so the middle tab never "stays selected".
+        selectedTab = lastValidTab
     }
 
     // MARK: - Plan start
@@ -186,11 +211,15 @@ struct ContentView: View {
     }
 
     private func jumpToSurgeDetail(_ surge: SurgeSession) {
-        var newPath = NavigationPath()
-        newPath.append(surge)
-        sessionsPath = newPath
-        selectedTab = sessionsTab
-        lastValidTab = sessionsTab
+        if surge.isCurrent {
+            showingSurgeDetail = true
+        } else {
+            var newPath = NavigationPath()
+            newPath.append(surge)
+            sessionsPath = newPath
+            selectedTab = sessionsTab
+            lastValidTab = sessionsTab
+        }
     }
 }
 
@@ -230,9 +259,12 @@ struct RoutesHomeView: View {
     @State private var path = NavigationPath()
 
     // "Go from map" flow — peek's Go button skips the detail view and jumps
-    // straight to the surge-session picker, then into SessionRecordingView.
+    // straight into SessionRecordingView. The surge session is created only when
+    // the user actually taps Start inside that view.
     @State private var goRoute: Route?
-    @State private var goSurge: SurgeSession?
+    @State private var goMode: SessionMode = .laps
+    @State private var goTarget: Double = 1.0
+    @State private var navigatingToRecording = false
 
     private static let defaultRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 39.5, longitude: -98.35),
@@ -257,22 +289,30 @@ struct RoutesHomeView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarContent }
-            .sheet(item: $peekRoute, onDismiss: handlePeekDismiss) { route in
-                RoutePeekSheet(
-                    route: route,
-                    onUse: {
-                        goRoute = route
-                        peekRoute = nil
-                    },
-                    onEdit: {
-                        pendingEdit = route
-                        peekRoute = nil
+            .overlay {
+                if let route = peekRoute {
+                    ZStack {
+                        Color.black.opacity(0.35)
+                            .ignoresSafeArea()
+                            .onTapGesture { peekRoute = nil }
+                        RoutePeekSheet(
+                            route: route,
+                            onUse: { mode, target in
+                                goRoute = route
+                                goMode = mode
+                                goTarget = target
+                                peekRoute = nil
+                                navigatingToRecording = true
+                            }
+                        )
                     }
-                )
+                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                }
             }
-            .navigationDestination(item: $goSurge) { surge in
+            .animation(.easeInOut(duration: 0.18), value: peekRoute != nil)
+            .navigationDestination(isPresented: $navigatingToRecording) {
                 if let route = goRoute {
-                    SessionRecordingView(route: route, surgeSession: surge)
+                    SessionRecordingView(route: route, initialMode: goMode, initialTarget: goTarget)
                 }
             }
             .sheet(item: $clusterPeek, onDismiss: handleClusterDismiss) { selection in
@@ -304,9 +344,7 @@ struct RoutesHomeView: View {
 
     private func handlePeekDismiss() {
         if goRoute != nil {
-            // "Go" was pressed — auto-attach to the current surge session (or create one)
-            // and push the recording view directly.
-            goSurge = SurgeSession.currentOrNew(in: modelContext)
+            navigatingToRecording = true
         } else if let route = pendingEdit {
             editingRoute = route
             pendingEdit = nil
@@ -369,7 +407,7 @@ struct RoutesHomeView: View {
         ContentUnavailableView {
             Label("No Routes Yet", systemImage: "figure.run")
         } description: {
-            Text("Create your first route with the blue + button above. Walk or run a loop once so the app learns its shape.")
+            Text("Create your first route with the blue + button above. Walk or run your personal track once so the app learns its shape.")
         }
     }
 
@@ -513,14 +551,27 @@ struct RoutesHomeView: View {
             List {
                 ForEach(Array(sortedRoutes.enumerated()), id: \.element.id) { idx, route in
                     Button {
-                        goRoute = route
-                        goSurge = SurgeSession.currentOrNew(in: modelContext)
+                        peekRoute = route
                     } label: {
                         routeRow(route, color: colors[idx])
                     }
                     .buttonStyle(.plain)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            modelContext.delete(route)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                        Button {
+                            editingRoute = route
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        .tint(.blue)
+                    }
                 }
-                .onDelete(perform: deleteSortedRoutes)
             }
         }
     }

@@ -2,7 +2,7 @@
 //  PlanDetailView.swift
 //  surge15
 //
-//  View/edit a plan: rename, view items (read-only for now), delete.
+//  View/edit a plan: rename, view items (read-only), delete.
 //
 
 import SwiftUI
@@ -69,21 +69,24 @@ struct PlanDetailView: View {
     }
 
     private func itemRow(_ item: PlanItem) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.route?.name ?? "Unknown Route").font(.headline)
-                Text("\(item.targetLaps) lap\(item.targetLaps == 1 ? "" : "s")")
+        HStack(spacing: 12) {
+            Image(systemName: item.workoutType.systemImage)
+                .foregroundStyle(.blue)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.workoutType.displayName)
+                    .font(.headline)
+                Text(item.displayTarget)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Spacer()
         }
     }
 }
 
 #Preview {
     NavigationStack {
-        PlanDetailView(plan: Plan(name: "Compromised running"))
+        PlanDetailView(plan: Plan(name: "HYROX Simulation"))
     }
     .modelContainer(for: Plan.self, inMemory: true)
 }

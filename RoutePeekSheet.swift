@@ -2,8 +2,8 @@
 //  RoutePeekSheet.swift
 //  surge15
 //
-//  Compact sheet that appears when the user taps a route's start pin on the
-//  home-screen map. Offers two actions: use the route (push detail) or edit it.
+//  Floating card shown when the user taps a route pin on the map.
+//  User picks laps/meters and target here, then taps Go.
 //
 
 import SwiftUI
@@ -11,25 +11,35 @@ import MapKit
 
 struct RoutePeekSheet: View {
     let route: Route
-    let onUse: () -> Void
-    let onEdit: () -> Void
+    let onUse: (SessionMode, Double) -> Void
+
+    @State private var sessionMode: SessionMode = .laps
+    @State private var targetLaps: Int = 1
+    @State private var targetMeters: Double = 400
+
+    private let lapPresets    = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 20, 25, 50, 100]
+    private let meterPresets: [Double] = [1, 5, 10, 20, 40, 50, 75, 100, 125, 150, 200, 250,
+                                          300, 350, 400, 450, 500, 550, 600, 650, 700, 750,
+                                          800, 850, 900, 950, 1000]
 
     var body: some View {
         VStack(spacing: 14) {
             routePreviewMap
-                .padding(.horizontal, 20)
 
             HStack(spacing: 10) {
                 distanceBox
                 goButton
-                editButton
             }
-            .padding(.horizontal, 20)
+
+            pickerPanel
         }
-        .padding(.vertical, 20)
-        .presentationDetents([.height(450)])
-        .presentationDragIndicator(.visible)
+        .padding(20)
+        .background(.background, in: RoundedRectangle(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.25), radius: 28, y: 10)
+        .padding(.horizontal, 20)
     }
+
+    // MARK: - Map
 
     private var routePreviewMap: some View {
         Map(initialPosition: .automatic, interactionModes: []) {
@@ -52,13 +62,15 @@ struct RoutePeekSheet: View {
             }
         }
         .mapStyle(.standard(elevation: .flat))
-        .frame(height: 320)
+        .frame(height: 240)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
                 .strokeBorder(Color.secondary.opacity(0.25), lineWidth: 1)
         )
     }
+
+    // MARK: - Buttons
 
     private var distanceBox: some View {
         Text(Formatters.distance(route.distanceMeters))
@@ -67,45 +79,83 @@ struct RoutePeekSheet: View {
             .foregroundStyle(.white)
             .lineLimit(1)
             .minimumScaleFactor(0.7)
-            .frame(maxWidth: .infinity, minHeight: 64)
+            .frame(maxWidth: .infinity, minHeight: 52)
             .background(Color.blue, in: RoundedRectangle(cornerRadius: 12))
     }
 
     private var goButton: some View {
-        Button(action: onUse) {
+        Button {
+            let target = sessionMode == .laps ? Double(targetLaps) : targetMeters
+            onUse(sessionMode, target)
+        } label: {
             HStack(spacing: 6) {
                 Image(systemName: "play.fill")
                 Text("Go")
             }
             .font(.headline)
             .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, minHeight: 64)
+            .frame(maxWidth: .infinity, minHeight: 52)
             .background(Color.green, in: RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
     }
 
-    private var editButton: some View {
-        Button(action: onEdit) {
-            HStack(spacing: 6) {
-                Image(systemName: "pencil")
-                Text("Edit")
+    // MARK: - Picker panel
+
+    private var pickerPanel: some View {
+        VStack(spacing: 10) {
+            Picker("Mode", selection: $sessionMode) {
+                Text("Laps").tag(SessionMode.laps)
+                Text("Meters").tag(SessionMode.distance)
             }
-            .font(.headline)
-            .frame(maxWidth: .infinity, minHeight: 64)
-            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+            .pickerStyle(.segmented)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    if sessionMode == .laps {
+                        ForEach(lapPresets, id: \.self) { n in
+                            chip(label: "\(n)", isSelected: targetLaps == n) {
+                                targetLaps = n
+                            }
+                        }
+                    } else {
+                        ForEach(meterPresets, id: \.self) { m in
+                            chip(label: Formatters.distance(m), isSelected: targetMeters == m) {
+                                targetMeters = m
+                            }
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+                .padding(.leading, 2)
+            }
+            .mask(
+                HStack(spacing: 0) {
+                    Rectangle()
+                    LinearGradient(colors: [.white, .clear], startPoint: .leading, endPoint: .trailing)
+                        .frame(width: 36)
+                }
+            )
+        }
+    }
+
+    private func chip(label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.callout.bold())
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(isSelected ? Color.blue : Color(.systemFill), in: Capsule())
+                .foregroundStyle(isSelected ? .white : .primary)
         }
         .buttonStyle(.plain)
+        .animation(.easeInOut(duration: 0.12), value: isSelected)
     }
 }
 
 #Preview {
-    Color.gray
-        .sheet(isPresented: .constant(true)) {
-            RoutePeekSheet(
-                route: Route(name: "Backyard 1k"),
-                onUse: {},
-                onEdit: {}
-            )
-        }
+    ZStack {
+        Color.gray.ignoresSafeArea()
+        RoutePeekSheet(route: Route(name: "Backyard 1k")) { _, _ in }
+    }
 }

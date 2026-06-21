@@ -118,6 +118,97 @@ final class RoutePoint {
     }
 }
 
+// MARK: - Plan enums
+
+enum WorkoutItemType: String, Codable, CaseIterable, Identifiable {
+    var id: String { rawValue }
+    case run
+    case lunge
+    case burpeeBroadJump
+    case row
+    case wallBall
+    case rest
+
+    var displayName: String {
+        switch self {
+        case .run: "Run"
+        case .lunge: "Lunge"
+        case .burpeeBroadJump: "Burpee Broad Jump"
+        case .row: "Row"
+        case .wallBall: "Wall Balls"
+        case .rest: "Break"
+        }
+    }
+
+    var shortName: String {
+        switch self {
+        case .run: "Run"
+        case .lunge: "Lunge"
+        case .burpeeBroadJump: "BBJ"
+        case .row: "Row"
+        case .wallBall: "W.Ball"
+        case .rest: "Break"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .run: "figure.run"
+        case .lunge: "figure.strengthtraining.functional"
+        case .burpeeBroadJump: "figure.jumprope"
+        case .row: "figure.rowing"
+        case .wallBall: "figure.strengthtraining.traditional"
+        case .rest: "figure.cooldown"
+        }
+    }
+
+    /// First element is the default measure for this type.
+    var availableMeasures: [WorkoutMeasure] {
+        switch self {
+        case .run:             [.meters, .laps]
+        case .lunge:           [.meters, .yards, .reps]
+        case .burpeeBroadJump: [.meters, .yards, .reps]
+        case .row:             [.meters]
+        case .wallBall:        [.reps]
+        case .rest:            [.minutes]
+        }
+    }
+}
+
+enum WorkoutMeasure: String, Codable, CaseIterable {
+    case meters, yards, laps, reps, minutes
+
+    var displayName: String {
+        switch self {
+        case .meters:  "Meters"
+        case .yards:   "Yards"
+        case .laps:    "Laps"
+        case .reps:    "Reps"
+        case .minutes: "Minutes"
+        }
+    }
+
+    func formatted(_ value: Double) -> String {
+        switch self {
+        case .meters:
+            if value >= 1000 { return String(format: "%.1fkm", value / 1000) }
+            return "\(Int(value))m"
+        case .yards:
+            return "\(Int(value))yd"
+        case .laps:
+            let n = Int(value)
+            return "\(n) \(n == 1 ? "lap" : "laps")"
+        case .reps:
+            let n = Int(value)
+            return "\(n) \(n == 1 ? "rep" : "reps")"
+        case .minutes:
+            if value < 1 { return "\(Int(value * 60)) sec" }
+            let n = Int(value)
+            return "\(n) \(n == 1 ? "min" : "mins")"
+        }
+    }
+}
+
 // MARK: - Plan (a reusable workout template)
 
 @Model
@@ -138,20 +229,29 @@ final class Plan {
     }
 }
 
-// MARK: - PlanItem (one entry in a plan: a route + target laps)
+// MARK: - PlanItem (one step in a plan: an exercise with a target)
 
 @Model
 final class PlanItem {
     var order: Int
-    var targetLaps: Int
-    var route: Route?
+    var workoutType: WorkoutItemType
+    var measure: WorkoutMeasure
+    var targetValue: Double
     var plan: Plan?
 
-    init(order: Int, targetLaps: Int = 1, route: Route? = nil) {
+    init(
+        order: Int,
+        workoutType: WorkoutItemType = .run,
+        measure: WorkoutMeasure = .meters,
+        targetValue: Double = 400
+    ) {
         self.order = order
-        self.targetLaps = targetLaps
-        self.route = route
+        self.workoutType = workoutType
+        self.measure = measure
+        self.targetValue = targetValue
     }
+
+    var displayTarget: String { measure.formatted(targetValue) }
 }
 
 // MARK: - SurgeSession (a day's collection of workouts)
@@ -290,6 +390,12 @@ final class Session {
 
     @Relationship(deleteRule: .cascade, inverse: \SessionPoint.session)
     var points: [SessionPoint] = []
+
+    var workoutType: WorkoutItemType = WorkoutItemType.run
+    var workoutMeasure: WorkoutMeasure = WorkoutMeasure.laps
+    var targetValue: Double = 1.0
+
+    var displayTarget: String { workoutMeasure.formatted(targetValue) }
 
     init(startedAt: Date = Date(), targetLaps: Int = 1) {
         self.startedAt = startedAt

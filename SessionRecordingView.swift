@@ -18,23 +18,38 @@ import CoreLocation
 import MapKit
 import UIKit
 
+enum SessionMode { case laps, distance }
+
 struct SessionRecordingView: View {
+
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Bindable var route: Route
-    let surgeSession: SurgeSession
+
+    var initialMode: SessionMode = .laps
+    var initialTarget: Double = 1.0
 
     @State private var tracker = LocationTracker()
 
     // Session-level
     @State private var startedAt: Date?
     @State private var sessionStartIndex: Int = 0
+    @State private var sessionMode: SessionMode = .laps
     @State private var targetLaps: Int = 1
+    @State private var targetMeters: Double = 400
 
     // Per-lap
     @State private var currentLapStartedAt: Date?
     @State private var currentLapStartIndex: Int = 0
     @State private var lapCompletions: [Date] = []
+
+    // Surge session — resolved lazily when the user taps Start, not on view load.
+    @State private var surgeSession: SurgeSession?
+
+    // Countdown
+    @State private var countdownRemaining: Int = 0
+    @State private var isCountingDown = false
+    @State private var countdownTask: Task<Void, Never>?
 
     // UI
     @State private var now = Date()
@@ -49,7 +64,11 @@ struct SessionRecordingView: View {
     @State private var turnaroundAlertDirection: SegmentDirection = .around
 
     private let startToleranceMeters: CLLocationDistance = 20
-    private let maxLaps: Int = 20
+    private let maxLaps: Int = 100
+    private let lapPresets    = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 20, 25, 50, 100]
+    private let meterPresets: [Double] = [1, 5, 10, 20, 40, 50, 75, 100, 125, 150, 200, 250,
+                                          300, 350, 400, 450, 500, 550, 600, 650, 700, 750,
+                                          800, 850, 900, 950, 1000]
 
     var body: some View {
         ZStack {
@@ -63,17 +82,14 @@ struct SessionRecordingView: View {
                 .padding()
             } else if isGateState {
                 gateMapFullScreen
-                    .ignoresSafeArea(edges: .bottom)
-
-                VStack(spacing: 0) {
-                    gateStatusBanner
-                        .padding(.top, 10)
-                    Spacer()
-                    lapPickerFloating
-                    authorizationFootnote
-                        .padding(.top, 8)
-                }
-                .padding(.bottom, 22)
+                    .overlay(alignment: .bottom) {
+                        VStack(spacing: 8) {
+                            authorizationFootnote
+                            gateStatusBanner
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 16)
+                    }
             } else {
                 VStack(spacing: 16) {
                     Spacer()
@@ -86,6 +102,11 @@ struct SessionRecordingView: View {
 
             if turnaroundAlertVisible {
                 turnaroundOverlay
+                    .transition(.opacity)
+            }
+
+            if isCountingDown {
+                countdownOverlay
                     .transition(.opacity)
             }
         }
@@ -104,10 +125,14 @@ struct SessionRecordingView: View {
         }
         .onAppear {
             tracker.requestAuthorization()
-            if !tracker.isRecording {
-                tracker.start()
-            }
+            if !tracker.isRecording { tracker.start() }
             centerCameraOnStartIfNeeded()
+            sessionMode = initialMode
+            if initialMode == .laps {
+                targetLaps = max(1, Int(initialTarget))
+            } else {
+                targetMeters = max(1, initialTarget)
+            }
         }
         .onChange(of: tracker.recordedLocations.count) { _, _ in
             checkSegmentBoundaries()
@@ -115,6 +140,7 @@ struct SessionRecordingView: View {
             centerCameraOnStartIfNeeded()
         }
         .onDisappear {
+            countdownTask?.cancel()
             if isSessionActive { saveSession() }
             tracker.stop()
         }
@@ -153,6 +179,13 @@ struct SessionRecordingView: View {
     private var isWithinStartTolerance: Bool {
         guard let d = distanceToStart else { return false }
         return d <= startToleranceMeters
+    }
+
+    private var gateDistanceColor: Color {
+        guard let d = distanceToStart else { return Color.black.opacity(0.7) }
+        if d <= startToleranceMeters { return .green }
+        if d <= 60 { return .orange }
+        return .red
     }
 
     private struct GuidanceArrow {
@@ -245,44 +278,66 @@ struct SessionRecordingView: View {
         }
     }
 
+    @ViewBuilder
     private var activeBlock: some View {
-        VStack(spacing: 18) {
-            Label("Lap \(completedLapCount + 1) of \(targetLaps)", systemImage: "flag.checkered")
-                .font(.headline)
+        if sessionMode == .laps {
+            VStack(spacing: 18) {
+                Label("Lap \(completedLapCount + 1) of \(targetLaps)", systemImage: "flag.checkered")
+                    .font(.headline)
 
-            VStack(spacing: 4) {
-                Text(Formatters.duration(currentLapElapsed))
-                    .font(.system(size: 72, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                Text("current lap time")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(spacing: 32) {
-                statCell(value: Formatters.distance(distanceLeftInLap), label: "left in lap")
-                statCell(value: Formatters.duration(totalElapsed), label: "total time")
-            }
-
-            if !liveLapDurations.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Completed laps")
+                VStack(spacing: 4) {
+                    Text(Formatters.duration(currentLapElapsed))
+                        .font(.system(size: 72, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                    Text("current lap time")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    HStack(spacing: 10) {
-                        ForEach(Array(liveLapDurations.enumerated()), id: \.offset) { idx, dur in
-                            VStack(spacing: 2) {
-                                Text("L\(idx + 1)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                Text(Formatters.duration(dur))
-                                    .font(.caption.monospacedDigit().bold())
+                }
+
+                HStack(spacing: 32) {
+                    statCell(value: Formatters.distance(distanceLeftInLap), label: "left in lap")
+                    statCell(value: Formatters.duration(totalElapsed), label: "total time")
+                }
+
+                if !liveLapDurations.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Completed laps")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        HStack(spacing: 10) {
+                            ForEach(Array(liveLapDurations.enumerated()), id: \.offset) { idx, dur in
+                                VStack(spacing: 2) {
+                                    Text("L\(idx + 1)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                    Text(Formatters.duration(dur))
+                                        .font(.caption.monospacedDigit().bold())
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.green.opacity(0.15), in: Capsule())
                             }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.green.opacity(0.15), in: Capsule())
                         }
                     }
+                }
+            }
+        } else {
+            VStack(spacing: 18) {
+                Label("Distance Run", systemImage: "ruler")
+                    .font(.headline)
+
+                VStack(spacing: 4) {
+                    Text(Formatters.duration(totalElapsed))
+                        .font(.system(size: 72, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                    Text("elapsed")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack(spacing: 32) {
+                    statCell(value: Formatters.distance(sessionDistance), label: "covered")
+                    statCell(value: Formatters.distance(max(0, targetMeters - sessionDistance)), label: "remaining")
                 }
             }
         }
@@ -334,7 +389,10 @@ struct SessionRecordingView: View {
 
     private var completedTitle: String {
         guard didAutoStop else { return "Session Saved" }
-        return targetLaps > 1 ? "All Laps Complete!" : "Lap Complete!"
+        switch sessionMode {
+        case .laps: return targetLaps > 1 ? "All Laps Complete!" : "Lap Complete!"
+        case .distance: return "Distance Reached!"
+        }
     }
 
     // MARK: - Gate (full-screen map + floating overlays)
@@ -407,86 +465,36 @@ struct SessionRecordingView: View {
 
     @ViewBuilder
     private var gateStatusBanner: some View {
-        if route.startCoordinate == nil {
-            EmptyView()
-        } else if let d = distanceToStart {
-            if d <= startToleranceMeters {
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill")
-                    Text("At Start")
-                        .font(.headline.bold())
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 10)
-                .background(Color.green, in: Capsule())
-                .shadow(color: .black.opacity(0.25), radius: 8, y: 2)
-            } else {
-                HStack(spacing: 10) {
-                    Image(systemName: "figure.walk")
-                        .font(.callout)
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("Walk to Start")
-                            .font(.caption.bold())
-                        Text(Formatters.distance(d))
-                            .font(.title3.bold().monospacedDigit())
-                    }
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Color.black.opacity(0.75), in: Capsule())
-                .shadow(color: .black.opacity(0.25), radius: 8, y: 2)
+        if route.startCoordinate != nil {
+            HStack(spacing: 14) {
+                Image(systemName: gateStatusIcon)
+                    .font(.title3.bold())
+                Text(gateStatusMessage)
+                    .font(.callout.bold())
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-        } else {
-            Label("Acquiring GPS…", systemImage: "location.viewfinder")
-                .font(.callout)
-                .foregroundStyle(.white)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(Color.black.opacity(0.6), in: Capsule())
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .background(gateDistanceColor, in: RoundedRectangle(cornerRadius: 16))
+            .shadow(color: .black.opacity(0.25), radius: 8, y: 2)
         }
     }
 
-    private var lapPickerFloating: some View {
-        HStack(spacing: 18) {
-            Button {
-                if targetLaps > 1 { targetLaps -= 1 }
-            } label: {
-                Image(systemName: "minus.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundStyle(targetLaps <= 1 ? Color.secondary : Color.accentColor)
-            }
-            .buttonStyle(.plain)
-            .disabled(targetLaps <= 1)
+    private var gateStatusIcon: String {
+        guard let d = distanceToStart else { return "location.viewfinder" }
+        return d <= startToleranceMeters ? "checkmark.circle.fill" : "figure.walk"
+    }
 
-            VStack(spacing: 0) {
-                Text("\(targetLaps)")
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                Text(targetLaps == 1 ? "lap" : "laps")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(minWidth: 56)
-
-            Button {
-                if targetLaps < maxLaps { targetLaps += 1 }
-            } label: {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundStyle(targetLaps >= maxLaps ? Color.secondary : Color.accentColor)
-            }
-            .buttonStyle(.plain)
-            .disabled(targetLaps >= maxLaps)
-        }
-        .padding(.horizontal, 22)
-        .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: Capsule())
-        .overlay(
-            Capsule().strokeBorder(Color.white.opacity(0.15), lineWidth: 0.5)
-        )
-        .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
+    private var gateStatusMessage: String {
+        guard let d = distanceToStart else { return "Acquiring GPS…" }
+        if d <= startToleranceMeters { return "You're at the start — press Start!" }
+        let dist = Formatters.distance(d)
+        return d <= 60
+            ? "Almost there! Walk \(dist) closer to start."
+            : "You are too far away! Walk \(dist) closer to start."
     }
 
     private func centerCameraOnStartIfNeeded() {
@@ -514,7 +522,7 @@ struct SessionRecordingView: View {
             .buttonStyle(.plain)
         } else {
             Button {
-                beginSession()
+                startCountdown()
             } label: {
                 actionPillLabel(
                     text: "Start",
@@ -566,9 +574,85 @@ struct SessionRecordingView: View {
         }
     }
 
+    // MARK: - Countdown overlay
+
+    private var countdownOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.85).ignoresSafeArea()
+            VStack(spacing: 28) {
+                Text("Get ready…")
+                    .font(.title3.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.6))
+
+                if countdownRemaining > 0 {
+                    Text("\(countdownRemaining)")
+                        .font(.system(size: 160, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.white)
+                        .monospacedDigit()
+                        .contentTransition(.numericText(countsDown: true))
+                        .animation(.default, value: countdownRemaining)
+                } else {
+                    Text("GO!")
+                        .font(.system(size: 110, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.green)
+                }
+
+                HStack(spacing: 52) {
+                    Button {
+                        if countdownRemaining <= 1 {
+                            countdownTask?.cancel()
+                            withAnimation { isCountingDown = false }
+                            beginSession()
+                        } else {
+                            withAnimation { countdownRemaining -= 1 }
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        }
+                    } label: {
+                        Image(systemName: "minus.circle.fill")
+                            .font(.system(size: 48))
+                            .foregroundStyle(.white.opacity(0.75))
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        withAnimation { countdownRemaining += 1 }
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 48))
+                            .foregroundStyle(.white.opacity(0.75))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
     // MARK: - Actions
 
+    private func startCountdown() {
+        countdownRemaining = 5
+        withAnimation { isCountingDown = true }
+        countdownTask = Task { @MainActor in
+            while countdownRemaining > 0 && !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { break }
+                if countdownRemaining > 0 {
+                    withAnimation { countdownRemaining -= 1 }
+                    UIImpactFeedbackGenerator(style: countdownRemaining == 0 ? .heavy : .medium)
+                        .impactOccurred()
+                }
+            }
+            guard !Task.isCancelled else { isCountingDown = false; return }
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            try? await Task.sleep(for: .milliseconds(450))
+            withAnimation { isCountingDown = false }
+            beginSession()
+        }
+    }
+
     private func beginSession() {
+        surgeSession = SurgeSession.currentOrNew(in: modelContext)
         let n = Date()
         sessionStartIndex = tracker.recordedLocations.count
         currentLapStartIndex = tracker.recordedLocations.count
@@ -587,6 +671,12 @@ struct SessionRecordingView: View {
 
     private func evaluateAutoStop() {
         guard isSessionActive else { return }
+
+        if sessionMode == .distance {
+            if sessionDistance >= targetMeters { stopAndSave(auto: true) }
+            return
+        }
+
         let routeDistance = route.distanceMeters
         guard routeDistance > 0 else { return }
         guard currentLapDistance >= routeDistance else { return }
@@ -650,6 +740,9 @@ struct SessionRecordingView: View {
             return
         }
         let session = Session(startedAt: startedAt, targetLaps: targetLaps)
+        session.workoutType = .run
+        session.workoutMeasure = sessionMode == .laps ? .laps : .meters
+        session.targetValue = sessionMode == .laps ? Double(targetLaps) : targetMeters
         session.endedAt = Date()
         session.lapCompletedAt = lapCompletions
         for location in sessionLocations {
@@ -664,8 +757,10 @@ struct SessionRecordingView: View {
             session.points.append(point)
         }
         route.sessions.append(session)
-        session.surgeSession = surgeSession
-        surgeSession.sessions.append(session)
+        if let surge = surgeSession {
+            session.surgeSession = surge
+            surge.sessions.append(session)
+        }
         modelContext.insert(session)
         hasSaved = true
     }
@@ -673,13 +768,7 @@ struct SessionRecordingView: View {
 
 #Preview {
     NavigationStack {
-        SessionRecordingView(
-            route: Route(name: "Backyard 1k"),
-            surgeSession: SurgeSession(
-                name: "Morning · Jun 20",
-                date: Calendar.current.startOfDay(for: Date())
-            )
-        )
+        SessionRecordingView(route: Route(name: "Backyard 1k"))
     }
     .modelContainer(for: Route.self, inMemory: true)
 }

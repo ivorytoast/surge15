@@ -20,6 +20,7 @@
 		956D4B342FE77E6D0024B101 /* PlanDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B332FE77E6D0024B101 /* PlanDetailView.swift */; };
 		956D4B362FE77E7B0024B101 /* SettingsHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B352FE77E7B0024B101 /* SettingsHomeView.swift */; };
 		956D4B3A2FE78A010024B101 /* SegmentDirection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B392FE78A010024B101 /* SegmentDirection.swift */; };
+		95DDDB602FE87FAA00BE2163 /* ExerciseRecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95DDDB5F2FE87FAA00BE2163 /* ExerciseRecordingView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,6 +57,7 @@
 		956D4B332FE77E6D0024B101 /* PlanDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanDetailView.swift; sourceTree = "<group>"; };
 		956D4B352FE77E7B0024B101 /* SettingsHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHomeView.swift; sourceTree = "<group>"; };
 		956D4B392FE78A010024B101 /* SegmentDirection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentDirection.swift; sourceTree = "<group>"; };
+		95DDDB5F2FE87FAA00BE2163 /* ExerciseRecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseRecordingView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -121,6 +123,7 @@
 				956D4B332FE77E6D0024B101 /* PlanDetailView.swift */,
 				956D4B352FE77E7B0024B101 /* SettingsHomeView.swift */,
 				956D4B392FE78A010024B101 /* SegmentDirection.swift */,
+				95DDDB5F2FE87FAA00BE2163 /* ExerciseRecordingView.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -283,6 +286,7 @@
 				956D4B282FE76ECA0024B101 /* RoutePeekSheet.swift in Sources */,
 				956D4B2E2FE776790024B101 /* SurgeSessionDetailView.swift in Sources */,
 				956D4B262FE7405C0024B101 /* SessionDetailView.swift in Sources */,
+				95DDDB602FE87FAA00BE2163 /* ExerciseRecordingView.swift in Sources */,
 				956D4B342FE77E6D0024B101 /* PlanDetailView.swift in Sources */,
 				956D4B2A2FE76EDC0024B101 /* EditRouteView.swift in Sources */,
 				956D4B3A2FE78A010024B101 /* SegmentDirection.swift in Sources */,

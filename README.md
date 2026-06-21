@@ -18,21 +18,20 @@ The app must make the following three things **SUPER EASY** and **STRAIGHTFORWAR
 
 ```
 SurgeSession (a workout day — Jun 20, optionally from a Plan)
-└── Session  (one execution of a Route — 3 laps on Backyard 1k)
-    └── …raw GPS samples + per-lap timestamps
+└── Session  (one exercise effort — Run 400m, Lunge 24m, 2 min Break…)
 
-Route       (a fixed loop — "Backyard 1k")
+Route       (a fixed GPS loop — "Backyard 1k")
 └── RouteSegment[]   (the path between turn cues, each ends with a direction)
 
-Plan        (a reusable workout template — "Compromised running")
-└── PlanItem[]       (route + target laps, in order)
+Plan        (a reusable workout template — "HYROX Simulation")
+└── PlanItem[]       (exercise type + measure + target, in order)
 ```
 
-- **`Route`** — fixed loop. Created once, reused. Owns its `definitionPoints` (GPS path), `segments` (turn-by-turn structure), and all `sessions` ever run on it.
+- **`Route`** — fixed GPS loop. Created once, reused. Owns its `definitionPoints` (GPS path), `segments` (turn-by-turn structure), and all `sessions` ever run on it.
 - **`RouteSegment`** — one straight-line piece between turn cues. Has a target distance and an `endLabel` (`Left`, `Right`, `Turnaround`, `Straight`, or `End`) so the runner gets the right turn alert at the right cumulative distance.
-- **`Session`** — one execution of a route. Has `targetLaps`, a sliced GPS trace, and `lapCompletedAt: [Date]` so we can show per-lap times.
+- **`Session`** — one exercise effort recorded inside a SurgeSession. Carries `workoutType`, `workoutMeasure`, `targetValue`. GPS-backed sessions (runs on routes) also have a sliced GPS trace and `lapCompletedAt: [Date]`.
 - **`SurgeSession`** — a day's workout container. Auto-named by time-of-day; can be created blank or instantiated from a Plan.
-- **`Plan`** — a reusable workout template. A list of `PlanItem(route, targetLaps)` entries. When applied, the new SurgeSession references the Plan so its detail view can show a "Planned" checklist that ticks off as matching sessions are recorded.
+- **`Plan`** — a reusable workout template. A list of `PlanItem(workoutType, measure, targetValue)` entries — route-agnostic. When applied, the new SurgeSession references the Plan so its detail view can show a "Planned" checklist that ticks off as matching sessions are recorded.
 
 ### Why this split matters for HYROX
 
@@ -97,11 +96,11 @@ During session recording, when `currentLapDistance` crosses an interior segment 
 | `Route` | `name`, `createdAt`, `definitionPoints`, `segments`, `sessions` | `distanceMeters` sums segment distances (fallback: raw GPS trace). `startCoordinate` is the first point. `bestLapDuration` / `averageLapDuration` flat-map across all sessions' lap durations. |
 | `RoutePoint` | timestamp, lat/lon/alt/speed/accuracy, `route` | One GPS sample in the route definition. |
 | `RouteSegment` | `order`, `distanceMeters`, `endLabel: String`, `route` | `endLabel` stores a `SegmentDirection.rawValue`. |
-| `Session` | `startedAt`, `endedAt`, `targetLaps`, `lapCompletedAt: [Date]`, `route`, `surgeSession`, `points` | `lapDurations` walks `lapCompletedAt`; falls back to `[durationSeconds]` for single-lap legacy. |
+| `Session` | `startedAt`, `endedAt`, `workoutType`, `workoutMeasure`, `targetValue`, `targetLaps`, `lapCompletedAt: [Date]`, `route?`, `surgeSession`, `points` | GPS sessions also have a route and point trace. `lapDurations` walks `lapCompletedAt`. `displayTarget` formats measure + value for UI. |
 | `SessionPoint` | timestamp, lat/lon/alt/speed/accuracy, `session` | One GPS sample inside a session. |
 | `SurgeSession` | `name`, `date` (start-of-day), `createdAt`, `plan`, `sessions` | `autoName(for:)` produces *"Morning · Jun 20"* etc. `totalDurationSeconds`, `totalDistanceMeters` aggregates. |
 | `Plan` | `name`, `createdAt`, `items` | Template. `items` cascade-delete with the plan. |
-| `PlanItem` | `order`, `targetLaps`, `route`, `plan` | One entry in a plan. |
+| `PlanItem` | `order`, `workoutType`, `measure`, `targetValue`, `plan` | One exercise target in a plan. Route-agnostic. |
 
 Geo: `CLLocationCoordinate2D.distance(to:)` extension lives in `Item.swift`.
 
@@ -122,11 +121,12 @@ A single `@Observable` class wrapping `CLLocationManager`:
 | `RoutePeekSheet` | Sheet that appears when you tap a route's pin: large preview map of the route + a [Distance \| Go \| Edit] row. |
 | `EditRouteView` | Scoped to rename + delete. |
 | `CreateRouteView` | Full-screen map, top-right Record/Stop pill, bottom L/⤺/R direction pad while recording. GPS warm-up overlay on appear. |
-| `PlansHomeView` | List of plans. State-aware `+` button: grey when no routes (nudges the user), blue when routes exist but no plans, accent when plans exist. |
-| `CreatePlanView` | Form: name + a list of `(route, target laps)` items, reorderable + deletable. |
+| `PlansHomeView` | List of plans. `+` button creates new plans. Row summary shows exercise type short names (e.g. "Run · Lunge · BBJ"). |
+| `CreatePlanView` | Inline exercise picker (type chip scroll + measure segmented control + target chip scroll) + "Add to Plan" button. Added exercises accumulate in a reorderable list below. Name is prompted via alert only at save time. |
 | `PlanDetailView` | Rename + delete a plan. Has a prominent **Start This Plan** row that calls the environment-injected `\.startPlan` closure. |
-| `SurgeSessionDetailView` | Editable name + stats + "Planned" section (with greedy satisfaction check) + sessions list + delete. |
-| `SessionRecordingView` | Map gate + lap picker pre-session, then timer/distance/lap pills + direction-aware turn alerts. |
+| `SurgeSessionDetailView` | Live and past layouts. Shows elapsed timer when running. Buttons to add any exercise type. "Planned" checklist with greedy satisfaction. Sessions list with type, target, duration. |
+| `ExerciseRecordingView` | Timer-based recording for all 6 exercise types. Gate → countdown (5-4-3-2-1, adjustable) → active timer → completed summary. Chip scroll for target selection. |
+| `SessionRecordingView` | GPS-gated recording for route runs. Map overlay with color-coded distance status bar. Active screen: timer/distance/lap pills + direction-aware turn alerts. |
 | `SessionDetailView` | Single session breakdown. |
 | `SessionsHomeView` | NavigationStack wrapping the custom calendar; nav bar hidden. |
 | `CalendarHomeView` | Custom month grid (active-day dots) + day's sessions grouped by ☀️ / 🌅 / 🌙 + random emoji on empty days. |
@@ -222,6 +222,64 @@ On the Calendar tab, when a day has sessions:
 - Sessions grouped into ☀️ Day / 🌅 Afternoon / 🌙 Night sections, with the emoji *as* the section header.
 - Row shows start time as headline + session count + total duration as the subhead. Date-suffixed names like *"Morning · Jun 20"* are stripped.
 
+### Iteration 19 — Six exercise types + inline plan builder (✅ shipped)
+
+**Six exercise types.** The `WorkoutItemType` enum now has six cases, each with its own measure constraints:
+
+| Case | Display | Measures |
+|---|---|---|
+| `.run` | Run | meters, laps |
+| `.lunge` | Lunge | meters, yards, reps |
+| `.burpeeBroadJump` | Burpee Broad Jump | meters, yards, reps |
+| `.row` | Row | meters |
+| `.wallBall` | Wall Balls | reps |
+| `.rest` | Break | minutes |
+
+Each type also has a `shortName` ("BBJ", "W.Ball", "Break", etc.) used in compact chip pickers and plan summaries.
+
+**New `WorkoutMeasure` cases**: `.yards` (same presets as meters, label `yd`) and `.minutes` (presets: 30s, 1m … 20m, labels like "30s" / "2m").
+
+**`CreatePlanView` — inline builder.** The separate `AddPlanItemView` sheet was eliminated entirely. The plan builder is now all on one screen:
+- **Type chip scroll**: horizontal scrolling chips with icon + short name — one compact row, scales to any number of types.
+- **Measure segmented control**: appears only when the selected type has more than one measure option.
+- **Target chip scroll**: same right-edge fade pattern as the type chips.
+- **"Add to Plan" button**: appends the current selection to a growing list below.
+- Plan items are reorderable + swipe-to-delete. Save prompts for a name via alert.
+- `AddPlanItemView.swift` deleted.
+
+**`ExerciseRecordingView` updated** to support all 6 types:
+- Minute presets added; chip labels show "30s" / "2m" format.
+- Row defaults to 1000m; Break defaults to 2 minutes.
+- All `currentPresets` and `onChange` handlers cover every `WorkoutMeasure` case exhaustively.
+
+### Iteration 18 — Exercise types + unified UI patterns (✅ shipped)
+
+**Three exercise types everywhere.** Runs, Lunges, and Burpee Broad Jumps are first-class citizens in both Surge Sessions and Plans.
+
+**`PlanItem` model redesigned** (breaking change — delete + reinstall to migrate):
+- Removed: `route`, `targetLaps`
+- Added: `workoutType: WorkoutItemType`, `measure: WorkoutMeasure`, `targetValue: Double`
+- Plans are now route-agnostic. A plan is just a list of exercise targets (e.g. "Run 400m, Lunge 24m, BBJ 10 reps").
+
+**`Session` model extended** with `workoutType`, `workoutMeasure`, `targetValue`, `displayTarget` to track what was actually done.
+
+**`ExerciseRecordingView`** (new file) — timer-based recording for any exercise type:
+- Three states: gate (pick measure + target) → countdown overlay (5-4-3-2-1, adjustable) → active timer → completed summary.
+- Horizontal chip scroll for target selection with a right-edge fade mask.
+- Countdown overlay has +/- buttons to adjust and a cancel button.
+- Used for all exercise types (no GPS — just time the effort).
+
+**`CreatePlanView`** — plan name moved from form field to save-time alert.
+
+**Gate screen redesigned** (`SessionRecordingView`):
+- Lap/meters picker **moved from gate screen → route popup** (`RoutePeekSheet`). Gate screen is now GPS-only.
+- Full-width colored status bar replaces the old "Walk to Start" button: red when far, orange when close, green when in range. Shows descriptive text like *"You are too far away! Walk 23m closer to start."*
+
+**Route popup flows are now identical**:
+- Map: tap pin → overlay popup → Go → record.
+- List: tap row → same overlay popup → Go → record.
+- Previously the list bypassed the popup entirely (direct-to-record). Fixed by wiring the list row's tap to `peekRoute = route` instead of `navigatingToRecording = true`.
+
 ### Iteration 17 — "Current Surge Session" + Surge tab (✅ shipped)
 
 The biggest mental-model change since iteration 8: **surge sessions can no longer be created manually**. They're a consequence of starting a workout, not a thing you set up.
@@ -288,18 +346,18 @@ Both ways of selecting a route on the Routes tab now drop straight into the surg
 
 ## Possible next steps
 
-- **Non-run exercises inside a Surge Session** — HYROX has 8 functional exercises (rowing, lunges, sled push/pull, burpees, etc.). Probably a new `ExerciseRecord` model holding type + duration + reps, attached to a `SurgeSession` the same way `Session` is.
-- **Real Settings**: measurement units (m/km ↔ miles), backups (Files / iCloud export), screen-on lock during recording.
+- **Break countdown in `ExerciseRecordingView`** — currently a Break records elapsed time like any other exercise. It should count *down* from the target instead of counting up, and auto-complete when it reaches zero.
+- **Plan editing**: `PlanDetailView` only supports rename + delete. Editing individual plan items (reorder, change target, remove) needs to be added — could reuse the same inline picker from `CreatePlanView`.
+- **GPS-backed run option in Surge Session** — currently "Add Exercise → Run" in a surge session goes to `ExerciseRecordingView` (time only, no GPS). Could offer the option to link to a saved route for GPS-tracked laps.
+- **Plan satisfaction for reps/minutes** — the greedy satisfaction check in `SurgeSessionDetailView` only auto-ticks Run items (meters/laps). Reps and timed exercises can't be auto-checked yet.
+- **Real Settings**: measurement units (m/km ↔ miles / yards), backups (Files / iCloud export), screen-on lock during recording.
 - **Persist sort preference** across launches (currently `RouteSort` is view-local `@State`).
-- **Plan editing**: the current `PlanDetailView` only supports rename + delete. Editing items needs to be added.
 - **Zoom-aware clustering threshold** — currently a flat 100 m real-world distance regardless of zoom level.
 - **"Fit all routes" button** that adjusts the home map to a region encompassing every route.
-- **Sort list by best lap time** for analysis-first use of the list view.
 - **Lap-complete haptic + overlay** mirroring the turn alert (different color, "LAP DONE" text).
 - **Custom segment labels** — let the user name turnarounds during creation (e.g. "Bench", "Tree", "Lifeguard stand").
 - **Audible cues** in addition to haptic + visual (system sound or spoken "turn left").
 - **Map during the active session** — show the user's live trace as they run the loop.
-- **Map on `SessionDetailView`** — visualize replays.
 - **Splits / per-segment pace** within each lap.
 - **Per-session comparison view** ("today vs PB").
 - **Background location updates** so the screen can be locked during a run (requires `UIBackgroundModes = location` + `allowsBackgroundLocationUpdates = true` + a `CLBackgroundActivitySession`).

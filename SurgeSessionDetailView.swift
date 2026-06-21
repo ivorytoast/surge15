@@ -16,6 +16,7 @@ struct SurgeSessionDetailView: View {
     @Bindable var surgeSession: SurgeSession
     @State private var showingDeleteConfirm = false
     @State private var showingEndConfirm = false
+    @State private var recordingExercise: WorkoutItemType?
     /// Drives the live elapsed timer while the surge session is running.
     @State private var now = Date()
 
@@ -36,6 +37,9 @@ struct SurgeSessionDetailView: View {
                 now = Date()
                 try? await Task.sleep(for: .seconds(1))
             }
+        }
+        .sheet(item: $recordingExercise) { type in
+            ExerciseRecordingView(workoutType: type, surgeSession: surgeSession)
         }
         .alert("Delete this surge session?", isPresented: $showingDeleteConfirm) {
             Button("Cancel", role: .cancel) { }
@@ -89,6 +93,21 @@ struct SurgeSessionDetailView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
             .listRowBackground(Color.clear)
+        }
+
+        Section {
+            ForEach(WorkoutItemType.allCases) { type in
+                Button { startExercise(type) } label: {
+                    Label(type.displayName, systemImage: type.systemImage)
+                        .font(.headline.bold())
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 4)
+                }
+                .foregroundStyle(.green)
+                .listRowBackground(Color.green.opacity(0.12))
+            }
+        } header: {
+            Text("Add Exercise")
         }
 
         if let plan = surgeSession.plan, !plan.items.isEmpty {
@@ -174,8 +193,8 @@ struct SurgeSessionDetailView: View {
         Section("Sessions") {
             if surgeSession.sessions.isEmpty {
                 Text(isLive
-                     ? "Switch to the Routes tab to run your first session."
-                     : "No sessions were recorded.")
+                     ? "Add your first exercise using the buttons above."
+                     : "No exercises were recorded.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
@@ -197,18 +216,21 @@ struct SurgeSessionDetailView: View {
         now.timeIntervalSince(surgeSession.createdAt)
     }
 
-    /// Greedy assignment: each planned item claims at most one recorded session
-    /// (same route, at least the planned lap count). Sessions can only satisfy one item.
+    /// Greedy assignment: each Run item claims at most one recorded session that
+    /// meets or exceeds its target. Non-run items (Lunge, BBJ) can't be auto-satisfied yet.
     private var satisfiedItemIDs: Set<PersistentIdentifier> {
         guard let plan = surgeSession.plan else { return [] }
         var satisfied = Set<PersistentIdentifier>()
         var claimed = Set<PersistentIdentifier>()
         for item in plan.sortedItems {
-            guard let itemRoute = item.route else { continue }
+            guard item.workoutType == .run else { continue }
             if let match = surgeSession.sessions.first(where: { session in
-                !claimed.contains(session.id)
-                && session.route?.id == itemRoute.id
-                && session.targetLaps >= item.targetLaps
+                guard !claimed.contains(session.id) else { return false }
+                switch item.measure {
+                case .meters, .yards: return session.distanceMeters >= item.targetValue
+                case .laps:           return Double(session.targetLaps) >= item.targetValue
+                case .reps, .minutes: return false
+                }
             }) {
                 satisfied.insert(item.id)
                 claimed.insert(match.id)
@@ -224,11 +246,11 @@ struct SurgeSessionDetailView: View {
                 .foregroundStyle(isDone ? .green : .secondary)
                 .font(.title3)
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.route?.name ?? "Unknown Route")
+                Text(item.workoutType.displayName)
                     .font(.headline)
                     .strikethrough(isDone)
                     .foregroundStyle(isDone ? .secondary : .primary)
-                Text("\(item.targetLaps) lap\(item.targetLaps == 1 ? "" : "s")")
+                Text(item.displayTarget)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -236,21 +258,28 @@ struct SurgeSessionDetailView: View {
     }
 
     private func sessionRow(_ session: Session) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(session.route?.name ?? "Unknown Route")
-                .font(.headline)
-            HStack(spacing: 10) {
-                Text(session.startedAt.formatted(date: .omitted, time: .shortened))
-                if let duration = session.durationSeconds {
-                    Text("·")
-                    Text(Formatters.duration(duration))
+        HStack(spacing: 12) {
+            Image(systemName: session.workoutType.systemImage)
+                .foregroundStyle(.blue)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(session.workoutType.displayName)
+                    .font(.headline)
+                HStack(spacing: 6) {
+                    Text(session.displayTarget)
+                    if let duration = session.durationSeconds {
+                        Text("·")
+                        Text(Formatters.duration(duration))
+                    }
                 }
-                Text("·")
-                Text("\(session.targetLaps) \(session.targetLaps == 1 ? "lap" : "laps")")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
         }
+    }
+
+    private func startExercise(_ type: WorkoutItemType) {
+        recordingExercise = type
     }
 
     private func deleteSessions(_ offsets: IndexSet) {
@@ -259,6 +288,7 @@ struct SurgeSessionDetailView: View {
             modelContext.delete(sorted[index])
         }
     }
+
 }
 
 #Preview {
