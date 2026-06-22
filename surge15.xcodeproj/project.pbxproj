@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		955578752FE9B61400C6F287 /* RouteSmoothing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955578742FE9B61400C6F287 /* RouteSmoothing.swift */; };
+		955578772FE9B62800C6F287 /* RouteDebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955578762FE9B62800C6F287 /* RouteDebugView.swift */; };
+		955578792FE9D5F900C6F287 /* CreatePlanGroupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955578782FE9D5F900C6F287 /* CreatePlanGroupView.swift */; };
+		9555787B2FE9D60C00C6F287 /* PlanGroupDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9555787A2FE9D60C00C6F287 /* PlanGroupDetailView.swift */; };
 		956D4B1A2FE737E80024B101 /* LocationTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B192FE737E80024B101 /* LocationTracker.swift */; };
 		956D4B1E2FE73FFF0024B101 /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B1D2FE73FFF0024B101 /* Formatters.swift */; };
 		956D4B202FE740190024B101 /* CreateRouteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B1F2FE740190024B101 /* CreateRouteView.swift */; };
@@ -41,6 +45,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		955578742FE9B61400C6F287 /* RouteSmoothing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteSmoothing.swift; sourceTree = "<group>"; };
+		955578762FE9B62800C6F287 /* RouteDebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteDebugView.swift; sourceTree = "<group>"; };
+		955578782FE9D5F900C6F287 /* CreatePlanGroupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatePlanGroupView.swift; sourceTree = "<group>"; };
+		9555787A2FE9D60C00C6F287 /* PlanGroupDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanGroupDetailView.swift; sourceTree = "<group>"; };
 		956D4AED2FE736230024B101 /* surge15.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = surge15.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		956D4AFC2FE736240024B101 /* surge15Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = surge15Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		956D4B062FE736240024B101 /* surge15UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = surge15UITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -124,6 +132,10 @@
 				956D4B352FE77E7B0024B101 /* SettingsHomeView.swift */,
 				956D4B392FE78A010024B101 /* SegmentDirection.swift */,
 				95DDDB5F2FE87FAA00BE2163 /* ExerciseRecordingView.swift */,
+				955578742FE9B61400C6F287 /* RouteSmoothing.swift */,
+				955578762FE9B62800C6F287 /* RouteDebugView.swift */,
+				955578782FE9D5F900C6F287 /* CreatePlanGroupView.swift */,
+				9555787A2FE9D60C00C6F287 /* PlanGroupDetailView.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -285,15 +297,19 @@
 				956D4B1A2FE737E80024B101 /* LocationTracker.swift in Sources */,
 				956D4B282FE76ECA0024B101 /* RoutePeekSheet.swift in Sources */,
 				956D4B2E2FE776790024B101 /* SurgeSessionDetailView.swift in Sources */,
+				955578772FE9B62800C6F287 /* RouteDebugView.swift in Sources */,
 				956D4B262FE7405C0024B101 /* SessionDetailView.swift in Sources */,
 				95DDDB602FE87FAA00BE2163 /* ExerciseRecordingView.swift in Sources */,
 				956D4B342FE77E6D0024B101 /* PlanDetailView.swift in Sources */,
 				956D4B2A2FE76EDC0024B101 /* EditRouteView.swift in Sources */,
+				955578752FE9B61400C6F287 /* RouteSmoothing.swift in Sources */,
 				956D4B3A2FE78A010024B101 /* SegmentDirection.swift in Sources */,
 				956D4B202FE740190024B101 /* CreateRouteView.swift in Sources */,
 				956D4B322FE77E600024B101 /* CreatePlanView.swift in Sources */,
 				956D4B302FE77E4F0024B101 /* PlansHomeView.swift in Sources */,
+				955578792FE9D5F900C6F287 /* CreatePlanGroupView.swift in Sources */,
 				956D4B242FE7404B0024B101 /* SessionRecordingView.swift in Sources */,
+				9555787B2FE9D60C00C6F287 /* PlanGroupDetailView.swift in Sources */,
 				956D4B362FE77E7B0024B101 /* SettingsHomeView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

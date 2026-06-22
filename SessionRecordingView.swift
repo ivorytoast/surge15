@@ -46,7 +46,9 @@ struct SessionRecordingView: View {
     // Surge session — resolved lazily when the user taps Start, not on view load.
     @State private var surgeSession: SurgeSession?
 
+
     // Countdown
+    @AppStorage(countdownDefaultKey) private var countdownDefault: Int = countdownDefaultValue
     @State private var countdownRemaining: Int = 0
     @State private var isCountingDown = false
     @State private var countdownTask: Task<Void, Never>?
@@ -55,6 +57,7 @@ struct SessionRecordingView: View {
     @State private var now = Date()
     @State private var hasSaved = false
     @State private var didAutoStop = false
+    @State private var sessionEndedAt: Date?
     @State private var cameraPosition: MapCameraPosition = .automatic
     @State private var didCenterCamera = false
 
@@ -62,6 +65,10 @@ struct SessionRecordingView: View {
     @State private var announcedSegmentsInLap: Set<Int> = []
     @State private var turnaroundAlertVisible = false
     @State private var turnaroundAlertDirection: SegmentDirection = .around
+
+    // Start-point alert (fires between laps / route loops)
+    @State private var startPointAlertVisible = false
+    @State private var announcedRouteLoops: Int = 0   // distance-mode loop counter
 
     private let startToleranceMeters: CLLocationDistance = 20
     private let maxLaps: Int = 100
@@ -73,13 +80,11 @@ struct SessionRecordingView: View {
     var body: some View {
         ZStack {
             if hasSaved {
-                VStack(spacing: 24) {
-                    Spacer()
-                    completedBlock
-                    Spacer()
-                    doneButton
-                }
-                .padding()
+                completedBlock
+                    .safeAreaInset(edge: .bottom) {
+                        doneButton
+                            .padding(.bottom, 16)
+                    }
             } else if isGateState {
                 gateMapFullScreen
                     .overlay(alignment: .bottom) {
@@ -102,6 +107,11 @@ struct SessionRecordingView: View {
 
             if turnaroundAlertVisible {
                 turnaroundOverlay
+                    .transition(.opacity)
+            }
+
+            if startPointAlertVisible {
+                startPointOverlay
                     .transition(.opacity)
             }
 
@@ -154,6 +164,20 @@ struct SessionRecordingView: View {
                     .font(.system(size: 140))
                     .foregroundStyle(.white)
                 Text(turnaroundAlertDirection.alertTitle)
+                    .font(.system(size: 56, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+            }
+        }
+    }
+
+    private var startPointOverlay: some View {
+        ZStack {
+            Color.green.ignoresSafeArea()
+            VStack(spacing: 20) {
+                Image(systemName: "arrow.counterclockwise")
+                    .font(.system(size: 140))
+                    .foregroundStyle(.white)
+                Text("START AGAIN")
                     .font(.system(size: 56, weight: .heavy, design: .rounded))
                     .foregroundStyle(.white)
             }
@@ -245,7 +269,7 @@ struct SessionRecordingView: View {
 
     private var totalElapsed: TimeInterval {
         guard let startedAt else { return 0 }
-        return now.timeIntervalSince(startedAt)
+        return (sessionEndedAt ?? now).timeIntervalSince(startedAt)
     }
 
     private var completedLapCount: Int { lapCompletions.count }
@@ -280,67 +304,207 @@ struct SessionRecordingView: View {
 
     @ViewBuilder
     private var activeBlock: some View {
-        if sessionMode == .laps {
-            VStack(spacing: 18) {
-                Label("Lap \(completedLapCount + 1) of \(targetLaps)", systemImage: "flag.checkered")
-                    .font(.headline)
+        VStack(spacing: 24) {
 
-                VStack(spacing: 4) {
-                    Text(Formatters.duration(currentLapElapsed))
-                        .font(.system(size: 72, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                    Text("current lap time")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+            // ── Top row: Pace + Total Time ──────────────────────────────
+            HStack(spacing: 0) {
+                bigMetricCard(title: "Pace", value: paceDisplay, unit: "/km")
+                Divider().frame(height: 64)
+                bigMetricCard(title: "Total Time", value: Formatters.duration(totalElapsed), unit: "")
+            }
+            .padding(.horizontal, 16)
 
-                HStack(spacing: 32) {
-                    statCell(value: Formatters.distance(distanceLeftInLap), label: "left in lap")
-                    statCell(value: Formatters.duration(totalElapsed), label: "total time")
-                }
+            // ── Progress ring ───────────────────────────────────────────
+            progressRingView
 
-                if !liveLapDurations.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Completed laps")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        HStack(spacing: 10) {
-                            ForEach(Array(liveLapDurations.enumerated()), id: \.offset) { idx, dur in
-                                VStack(spacing: 2) {
-                                    Text("L\(idx + 1)")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                    Text(Formatters.duration(dur))
-                                        .font(.caption.monospacedDigit().bold())
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.green.opacity(0.15), in: Capsule())
+            // ── Coverage: Xm / Xm  or  Lap X of Y ─────────────────────
+            Text(coverageDisplay)
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .multilineTextAlignment(.center)
+
+            if let eta = estimatedFinishTime {
+                Text("~\(Formatters.duration(eta)) to finish")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 7)
+                    .background(Color(.secondarySystemFill), in: Capsule())
+            }
+
+            if sessionMode == .laps, !liveLapDurations.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(liveLapDurations.enumerated()), id: \.offset) { idx, dur in
+                            VStack(spacing: 2) {
+                                Text("L\(idx + 1)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Text(Formatters.duration(dur))
+                                    .font(.caption.monospacedDigit().bold())
                             }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(lapPillColor(idx: idx), in: Capsule())
                         }
                     }
-                }
-            }
-        } else {
-            VStack(spacing: 18) {
-                Label("Distance Run", systemImage: "ruler")
-                    .font(.headline)
-
-                VStack(spacing: 4) {
-                    Text(Formatters.duration(totalElapsed))
-                        .font(.system(size: 72, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                    Text("elapsed")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                HStack(spacing: 32) {
-                    statCell(value: Formatters.distance(sessionDistance), label: "covered")
-                    statCell(value: Formatters.distance(max(0, targetMeters - sessionDistance)), label: "remaining")
+                    .padding(.horizontal, 4)
                 }
             }
         }
+    }
+
+    // MARK: - Progress ring
+
+    private var progressRingView: some View {
+        let fraction = progressFraction
+        let ringColor: Color = sessionMode == .laps ? .green : .blue
+        let centerTime = sessionMode == .laps ? Formatters.duration(currentLapElapsed)
+                                              : Formatters.duration(totalElapsed)
+        let centerHint = sessionMode == .laps ? "Lap Time" : "Elapsed"
+
+        return ZStack {
+            Circle()
+                .stroke(ringColor.opacity(0.15), lineWidth: 18)
+                .frame(width: 210, height: 210)
+
+            Circle()
+                .trim(from: 0, to: fraction)
+                .stroke(ringColor, style: StrokeStyle(lineWidth: 18, lineCap: .round))
+                .frame(width: 210, height: 210)
+                .rotationEffect(.degrees(-90))
+                .animation(.easeOut(duration: 0.6), value: fraction)
+
+            VStack(spacing: 4) {
+                Text(centerTime)
+                    .font(.system(size: 50, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                Text(centerHint)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let delta = lapDeltaDisplay {
+                    Text(delta)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(lapDeltaIsAhead ? .green : .orange)
+                }
+            }
+            .padding(28)
+        }
+    }
+
+    private func bigMetricCard(title: String, value: String, unit: String) -> some View {
+        VStack(spacing: 4) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            HStack(alignment: .lastTextBaseline, spacing: 3) {
+                Text(value)
+                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                if !unit.isEmpty {
+                    Text(unit)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var coverageDisplay: String {
+        switch sessionMode {
+        case .laps:
+            return "Lap \(completedLapCount + 1) of \(targetLaps)"
+        case .distance:
+            return "\(Formatters.distance(sessionDistance)) / \(Formatters.distance(targetMeters))"
+        }
+    }
+
+    // MARK: - Computed display values
+
+    private var progressFraction: Double {
+        switch sessionMode {
+        case .laps:
+            let rd = route.distanceMeters
+            guard rd > 0 else { return 0 }
+            return min(currentLapDistance / rd, 1.0)
+        case .distance:
+            guard targetMeters > 0 else { return 0 }
+            return min(sessionDistance / targetMeters, 1.0)
+        }
+    }
+
+    /// Seconds per km. Returns nil if too little data to show meaningful pace.
+    private var currentPaceSecondsPerKm: Double? {
+        guard sessionDistance > 50, totalElapsed > 5 else { return nil }
+        return (totalElapsed / sessionDistance) * 1000
+    }
+
+    private var paceDisplay: String {
+        guard let pace = currentPaceSecondsPerKm else { return "--:--" }
+        let mins = Int(pace) / 60
+        let secs = Int(pace) % 60
+        return String(format: "%d:%02d", mins, secs)
+    }
+
+    /// Estimated seconds remaining based on current pace.
+    private var estimatedFinishTime: TimeInterval? {
+        guard let pace = currentPaceSecondsPerKm else { return nil }
+        switch sessionMode {
+        case .laps:
+            let lapsLeft = targetLaps - completedLapCount
+            guard lapsLeft > 0 else { return nil }
+            let metersLeft = Double(lapsLeft) * route.distanceMeters - currentLapDistance
+            guard metersLeft > 0 else { return nil }
+            return (metersLeft / 1000) * pace
+        case .distance:
+            let metersLeft = targetMeters - sessionDistance
+            guard metersLeft > 10 else { return nil }
+            return (metersLeft / 1000) * pace
+        }
+    }
+
+    /// Best completed lap duration so far.
+    private var bestLapDuration: TimeInterval? { liveLapDurations.min() }
+
+    private var avgPaceSecsPerKm: Double? {
+        guard sessionDistance > 50 else { return nil }
+        return totalElapsed / (sessionDistance / 1000)
+    }
+
+    private var avgLapDuration: TimeInterval? {
+        guard !liveLapDurations.isEmpty else { return nil }
+        return liveLapDurations.reduce(0, +) / Double(liveLapDurations.count)
+    }
+
+    private func lapPaceString(duration: TimeInterval) -> String? {
+        let lapDist = route.distanceMeters
+        guard lapDist > 10 else { return nil }
+        return Formatters.pace(secondsPerKilometer: duration / (lapDist / 1000))
+    }
+
+    /// "+X:XX" / "-X:XX" vs best lap, shown inside the ring during laps mode.
+    private var lapDeltaDisplay: String? {
+        guard sessionMode == .laps,
+              let best = bestLapDuration,
+              currentLapElapsed > 5 else { return nil }
+        let diff = currentLapElapsed - best
+        let abs  = Swift.abs(diff)
+        let mins = Int(abs) / 60
+        let secs = Int(abs) % 60
+        let sign = diff < 0 ? "-" : "+"
+        return "\(sign)\(mins):\(String(format: "%02d", secs))"
+    }
+
+    private var lapDeltaIsAhead: Bool {
+        guard let best = bestLapDuration else { return false }
+        return currentLapElapsed < best
+    }
+
+    private func lapPillColor(idx: Int) -> Color {
+        guard let best = bestLapDuration else { return Color.green.opacity(0.15) }
+        return liveLapDurations[idx] <= best + 0.5 ? Color.green.opacity(0.18) : Color.orange.opacity(0.15)
     }
 
     private func statCell(value: String, label: String) -> some View {
@@ -354,35 +518,186 @@ struct SessionRecordingView: View {
     }
 
     private var completedBlock: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 64))
-                .foregroundStyle(.green)
-            Text(completedTitle)
-                .font(.title2.bold())
-            HStack(spacing: 16) {
-                Label(Formatters.duration(totalElapsed), systemImage: "clock")
-                Label(Formatters.distance(sessionDistance), systemImage: "ruler")
+        ScrollView {
+            VStack(spacing: 16) {
+                heroCompletionCard
+                completionStatsGrid
+                if sessionMode == .laps && liveLapDurations.count > 1 {
+                    lapBreakdownCard
+                }
             }
-            .font(.callout)
-            .foregroundStyle(.secondary)
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 100)
+        }
+    }
 
-            if targetLaps > 1 && !liveLapDurations.isEmpty {
-                HStack(spacing: 10) {
-                    ForEach(Array(liveLapDurations.enumerated()), id: \.offset) { idx, dur in
-                        VStack(spacing: 2) {
-                            Text("L\(idx + 1)")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            Text(Formatters.duration(dur))
-                                .font(.caption.monospacedDigit().bold())
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.green.opacity(0.15), in: Capsule())
+    private var heroCompletionCard: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                Text(completedTitle)
+                    .font(.headline)
+                Spacer()
+            }
+            .foregroundStyle(.white.opacity(0.85))
+            .padding(.top, 20)
+            .padding(.horizontal, 20)
+
+            Spacer().frame(height: 16)
+
+            Text(Formatters.duration(totalElapsed))
+                .font(.system(size: 64, weight: .heavy, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(.white)
+
+            Text("total time")
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.75))
+                .padding(.bottom, 16)
+
+            Rectangle()
+                .fill(.white.opacity(0.25))
+                .frame(height: 1)
+                .padding(.horizontal, 20)
+
+            HStack(spacing: 0) {
+                VStack(spacing: 3) {
+                    Text(Formatters.distance(sessionDistance))
+                        .font(.title3.bold().monospacedDigit())
+                    Text("distance")
+                        .font(.caption)
+                        .opacity(0.75)
+                }
+                .frame(maxWidth: .infinity)
+
+                if sessionMode == .laps {
+                    Rectangle()
+                        .fill(.white.opacity(0.3))
+                        .frame(width: 1, height: 40)
+                    VStack(spacing: 3) {
+                        Text("\(completedLapCount)")
+                            .font(.title3.bold().monospacedDigit())
+                        Text(completedLapCount == 1 ? "lap" : "laps")
+                            .font(.caption)
+                            .opacity(0.75)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .foregroundStyle(.white)
+            .frame(height: 60)
+        }
+        .background(
+            LinearGradient(
+                colors: [Color.green, Color(red: 0.1, green: 0.6, blue: 0.3)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 24)
+        )
+    }
+
+    private var completionStatsGrid: some View {
+        let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+        return LazyVGrid(columns: columns, spacing: 12) {
+            if let secs = avgPaceSecsPerKm {
+                completionStatCard(
+                    icon: "gauge.with.dots.needle.67percent",
+                    title: "Avg Pace",
+                    value: Formatters.pace(secondsPerKilometer: secs),
+                    accent: .blue
+                )
+            }
+            if sessionMode == .laps, let best = bestLapDuration {
+                completionStatCard(
+                    icon: "bolt.fill",
+                    title: "Best Lap",
+                    value: Formatters.duration(best),
+                    accent: .orange
+                )
+            }
+            if sessionMode == .laps, let avg = avgLapDuration, liveLapDurations.count > 1 {
+                completionStatCard(
+                    icon: "clock.arrow.2.circlepath",
+                    title: "Avg Lap",
+                    value: Formatters.duration(avg),
+                    accent: .purple
+                )
+            }
+            completionStatCard(
+                icon: "flag.fill",
+                title: sessionMode == .laps ? "Target Laps" : "Target",
+                value: sessionMode == .laps ? "\(targetLaps)" : Formatters.distance(targetMeters),
+                accent: .teal
+            )
+        }
+    }
+
+    private func completionStatCard(icon: String, title: String, value: String, accent: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(accent)
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            Text(value)
+                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    private var lapBreakdownCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Lap by Lap")
+                .font(.headline)
+                .padding(.leading, 4)
+
+            ForEach(Array(liveLapDurations.enumerated()), id: \.offset) { idx, dur in
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue.opacity(0.12))
+                            .frame(width: 36, height: 36)
+                        Text("\(idx + 1)")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundStyle(.blue)
+                    }
+
+                    Text(Formatters.duration(dur))
+                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+
+                    Spacer()
+
+                    if let pace = lapPaceString(duration: dur) {
+                        Text(pace)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+
+                    if let best = bestLapDuration, dur <= best + 0.5 {
+                        Text("BEST")
+                            .font(.system(size: 10, weight: .heavy))
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Color.orange.opacity(0.12), in: Capsule())
                     }
                 }
-                .padding(.top, 4)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
             }
         }
     }
@@ -420,7 +735,7 @@ struct SessionRecordingView: View {
                 }
 
                 if route.definitionPoints.count >= 2 {
-                    MapPolyline(coordinates: route.sortedDefinitionPoints.map(\.coordinate))
+                    MapPolyline(coordinates: route.smoothedCoordinates(epsilon: routeDisplayEpsilon))
                         .stroke(Color.blue.opacity(0.7), lineWidth: 4)
                 }
 
@@ -631,7 +946,7 @@ struct SessionRecordingView: View {
     // MARK: - Actions
 
     private func startCountdown() {
-        countdownRemaining = 5
+        countdownRemaining = countdownDefault
         withAnimation { isCountingDown = true }
         countdownTask = Task { @MainActor in
             while countdownRemaining > 0 && !Task.isCancelled {
@@ -652,7 +967,9 @@ struct SessionRecordingView: View {
     }
 
     private func beginSession() {
-        surgeSession = SurgeSession.currentOrNew(in: modelContext)
+        let surge = SurgeSession.currentOrNew(in: modelContext)
+        if surge.route == nil { surge.route = route }
+        surgeSession = surge
         let n = Date()
         sessionStartIndex = tracker.recordedLocations.count
         currentLapStartIndex = tracker.recordedLocations.count
@@ -660,6 +977,8 @@ struct SessionRecordingView: View {
         currentLapStartedAt = n
         lapCompletions = []
         announcedSegmentsInLap = []
+        announcedRouteLoops = 0
+        startPointAlertVisible = false
         didAutoStop = false
     }
 
@@ -671,13 +990,26 @@ struct SessionRecordingView: View {
 
     private func evaluateAutoStop() {
         guard isSessionActive else { return }
+        let routeDistance = route.distanceMeters
 
         if sessionMode == .distance {
+            // Fire "Start Again" each time cumulative distance crosses a route-length boundary.
+            if routeDistance > 0 {
+                let loops = Int(sessionDistance / routeDistance)
+                if loops > announcedRouteLoops {
+                    announcedRouteLoops = loops
+                    if sessionDistance < targetMeters {
+                        fireStartPointAlert()
+                    }
+                    // Reset per-lap tracking so turn cues fire again on the next loop.
+                    currentLapStartIndex = tracker.recordedLocations.count
+                    announcedSegmentsInLap = []
+                }
+            }
             if sessionDistance >= targetMeters { stopAndSave(auto: true) }
             return
         }
 
-        let routeDistance = route.distanceMeters
         guard routeDistance > 0 else { return }
         guard currentLapDistance >= routeDistance else { return }
 
@@ -687,7 +1019,8 @@ struct SessionRecordingView: View {
         if lapCompletions.count >= targetLaps {
             stopAndSave(auto: true)
         } else {
-            // Start the next lap.
+            // Alert the runner to start the route again, then reset for the next lap.
+            fireStartPointAlert()
             currentLapStartedAt = Date()
             currentLapStartIndex = tracker.recordedLocations.count
             announcedSegmentsInLap = []
@@ -706,6 +1039,26 @@ struct SessionRecordingView: View {
                 announcedSegmentsInLap.insert(idx)
                 let direction = SegmentDirection(rawValue: segments[idx].endLabel) ?? .around
                 fireTurnaroundAlert(direction: direction)
+            }
+        }
+    }
+
+    private func fireStartPointAlert() {
+        Task { @MainActor in
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            let impact = UIImpactFeedbackGenerator(style: .heavy)
+            for _ in 0..<3 {
+                try? await Task.sleep(for: .milliseconds(200))
+                impact.impactOccurred()
+            }
+        }
+        withAnimation(.easeIn(duration: 0.15)) {
+            startPointAlertVisible = true
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(3))
+            withAnimation(.easeOut(duration: 0.4)) {
+                startPointAlertVisible = false
             }
         }
     }
@@ -739,11 +1092,13 @@ struct SessionRecordingView: View {
             hasSaved = true
             return
         }
+        let end = Date()
+        sessionEndedAt = end
         let session = Session(startedAt: startedAt, targetLaps: targetLaps)
         session.workoutType = .run
         session.workoutMeasure = sessionMode == .laps ? .laps : .meters
         session.targetValue = sessionMode == .laps ? Double(targetLaps) : targetMeters
-        session.endedAt = Date()
+        session.endedAt = end
         session.lapCompletedAt = lapCompletions
         for location in sessionLocations {
             let point = SessionPoint(

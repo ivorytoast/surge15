@@ -209,6 +209,28 @@ enum WorkoutMeasure: String, Codable, CaseIterable {
     }
 }
 
+// MARK: - PlanGroup (a named container that holds plans; can be empty)
+
+@Model
+final class PlanGroup {
+    var name: String
+    var createdAt: Date
+    var cardGradientIndex: Int = 0
+    var isFavorite: Bool = false
+
+    @Relationship(deleteRule: .nullify, inverse: \Plan.group)
+    var plans: [Plan] = []
+
+    init(name: String, createdAt: Date = Date()) {
+        self.name = name
+        self.createdAt = createdAt
+    }
+
+    var sortedPlans: [Plan] {
+        plans.sorted { $0.createdAt > $1.createdAt }
+    }
+}
+
 // MARK: - Plan (a reusable workout template)
 
 @Model
@@ -218,6 +240,9 @@ final class Plan {
 
     @Relationship(deleteRule: .cascade, inverse: \PlanItem.plan)
     var items: [PlanItem] = []
+    var group: PlanGroup?
+    var isFavorite: Bool = false
+    var cardGradientIndex: Int = 0
 
     init(name: String, createdAt: Date = Date()) {
         self.name = name
@@ -269,6 +294,8 @@ final class SurgeSession {
     var endedAt: Date?
     /// The plan template this surge session was instantiated from, if any.
     var plan: Plan?
+    /// The route used for GPS runs in this surge session. Set on first GPS Start; nil for non-route surges.
+    var route: Route?
 
     @Relationship(deleteRule: .nullify, inverse: \Session.surgeSession)
     var sessions: [Session] = []
@@ -391,7 +418,7 @@ final class Session {
     @Relationship(deleteRule: .cascade, inverse: \SessionPoint.session)
     var points: [SessionPoint] = []
 
-    var workoutType: WorkoutItemType = WorkoutItemType.run
+    var workoutType: WorkoutItemType? = WorkoutItemType.run
     var workoutMeasure: WorkoutMeasure = WorkoutMeasure.laps
     var targetValue: Double = 1.0
 

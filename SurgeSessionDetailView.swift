@@ -9,6 +9,7 @@
 
 import SwiftUI
 import SwiftData
+import MapKit
 
 struct SurgeSessionDetailView: View {
     @Environment(\.modelContext) private var modelContext
@@ -40,6 +41,9 @@ struct SurgeSessionDetailView: View {
         }
         .sheet(item: $recordingExercise) { type in
             ExerciseRecordingView(workoutType: type, surgeSession: surgeSession)
+        }
+        .navigationDestination(for: Route.self) { route in
+            RouteRunSetupView(route: route)
         }
         .alert("Delete this surge session?", isPresented: $showingDeleteConfirm) {
             Button("Cancel", role: .cancel) { }
@@ -93,6 +97,21 @@ struct SurgeSessionDetailView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
             .listRowBackground(Color.clear)
+        }
+
+        if let route = surgeSession.route {
+            Section {
+                NavigationLink(value: route) {
+                    Label("Route Run", systemImage: "flag.checkered.2.crossed")
+                        .font(.headline.bold())
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 4)
+                }
+                .foregroundStyle(.blue)
+                .listRowBackground(Color.blue.opacity(0.12))
+            } header: {
+                Text("GPS · \(route.name)")
+            }
         }
 
         Section {
@@ -259,11 +278,11 @@ struct SurgeSessionDetailView: View {
 
     private func sessionRow(_ session: Session) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: session.workoutType.systemImage)
+            Image(systemName: (session.workoutType ?? .run).systemImage)
                 .foregroundStyle(.blue)
                 .frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
-                Text(session.workoutType.displayName)
+                Text((session.workoutType ?? .run).displayName)
                     .font(.headline)
                 HStack(spacing: 6) {
                     Text(session.displayTarget)
@@ -289,6 +308,126 @@ struct SurgeSessionDetailView: View {
         }
     }
 
+}
+
+// MARK: - Route Run Setup
+
+struct RouteRunSetupView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Bindable var route: Route
+
+    @State private var sessionMode: SessionMode = .laps
+    @State private var targetLaps: Int = 1
+    @State private var targetMeters: Double = 400
+    @State private var navigatingToRecording = false
+    @State private var didNavigate = false
+
+
+    private let lapPresets    = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 20, 25, 50, 100]
+    private let meterPresets: [Double] = [1, 5, 10, 20, 40, 50, 75, 100, 125, 150, 200, 250,
+                                          300, 350, 400, 450, 500, 550, 600, 650, 700, 750,
+                                          800, 850, 900, 950, 1000]
+
+    var body: some View {
+        List {
+            Section {
+                Map(initialPosition: .automatic, interactionModes: []) {
+                    if route.definitionPoints.count >= 2 {
+                        MapPolyline(coordinates: route.smoothedCoordinates(epsilon: routeDisplayEpsilon))
+                            .stroke(Color.blue, lineWidth: 4)
+                    }
+                    if let start = route.startCoordinate {
+                        Annotation("", coordinate: start) {
+                            ZStack {
+                                Circle().fill(.white).frame(width: 20, height: 20).shadow(radius: 2)
+                                Image(systemName: "flag.fill")
+                                    .foregroundStyle(.green)
+                                    .font(.system(size: 10, weight: .bold))
+                            }
+                        }
+                    }
+                }
+                .mapStyle(.standard(elevation: .flat))
+                .frame(height: 200)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .listRowInsets(EdgeInsets())
+            }
+
+            Section {
+                HStack {
+                    Label(Formatters.distance(route.distanceMeters), systemImage: "ruler")
+                    Spacer()
+                    Text("per lap")
+                        .foregroundStyle(.secondary)
+                }
+                .font(.callout)
+
+                Picker("Mode", selection: $sessionMode) {
+                    Text("Laps").tag(SessionMode.laps)
+                    Text("Meters").tag(SessionMode.distance)
+                }
+                .pickerStyle(.segmented)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(sessionMode == .laps ? lapPresets : [], id: \.self) { n in
+                            chip(label: "\(n)", isSelected: sessionMode == .laps && targetLaps == n) {
+                                targetLaps = n
+                            }
+                        }
+                        ForEach(sessionMode == .distance ? meterPresets : [], id: \.self) { m in
+                            chip(label: Formatters.distance(m), isSelected: sessionMode == .distance && targetMeters == m) {
+                                targetMeters = m
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 0))
+            } header: {
+                Text("Configure Run")
+            }
+
+            Section {
+                Button {
+                    didNavigate = true
+                    navigatingToRecording = true
+                } label: {
+                    Label("Go to Start Line", systemImage: "play.fill")
+                        .font(.headline.bold())
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+                .foregroundStyle(.green)
+                .listRowBackground(Color.green.opacity(0.12))
+            }
+        }
+        .navigationTitle(route.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: $navigatingToRecording) {
+            SessionRecordingView(
+                route: route,
+                initialMode: sessionMode,
+                initialTarget: sessionMode == .laps ? Double(targetLaps) : targetMeters
+            )
+        }
+        .onChange(of: navigatingToRecording) { _, isNavigating in
+            if !isNavigating && didNavigate {
+                dismiss()
+            }
+        }
+    }
+
+    private func chip(label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.callout.bold())
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(isSelected ? Color.blue : Color(.systemFill), in: Capsule())
+                .foregroundStyle(isSelected ? .white : .primary)
+        }
+        .buttonStyle(.plain)
+    }
 }
 
 #Preview {

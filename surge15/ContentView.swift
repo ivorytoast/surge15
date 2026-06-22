@@ -266,6 +266,9 @@ struct RoutesHomeView: View {
     @State private var goTarget: Double = 1.0
     @State private var navigatingToRecording = false
 
+    // Nearest-route suggestion bubble
+    @State private var suggestionDismissed = false
+
     private static let defaultRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 39.5, longitude: -98.35),
         latitudinalMeters: 5_000_000,
@@ -414,7 +417,7 @@ struct RoutesHomeView: View {
     // MARK: - Map mode
 
     private var mapHome: some View {
-        ZStack {
+        ZStack(alignment: .bottom) {
             Map(position: $cameraPosition) {
                 ForEach(clusters) { cluster in
                     Annotation(annotationTitle(for: cluster), coordinate: cluster.coordinate) {
@@ -441,6 +444,103 @@ struct RoutesHomeView: View {
             if isLocationUnavailable {
                 deniedOverlay
             }
+
+            if isAcquiringGPS {
+                VStack {
+                    acquiringGPSBanner
+                    Spacer()
+                }
+                .padding(.top, 12)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            nearestRouteSuggestion
+        }
+        .animation(.easeInOut(duration: 0.3), value: isAcquiringGPS)
+        .animation(.spring(duration: 0.45, bounce: 0.2), value: shouldShowSuggestion)
+    }
+
+    private var isAcquiringGPS: Bool {
+        userCoordinate == nil &&
+        (tracker.authorizationStatus == .authorizedWhenInUse ||
+         tracker.authorizationStatus == .authorizedAlways)
+    }
+
+    private var acquiringGPSBanner: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .scaleEffect(0.85)
+                .tint(.primary)
+            Text("Acquiring GPS Location")
+                .font(.callout.weight(.medium))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.regularMaterial, in: Capsule())
+        .shadow(color: .black.opacity(0.12), radius: 8, y: 2)
+    }
+
+    // MARK: - Nearest-route suggestion
+
+    private var shouldShowSuggestion: Bool {
+        !suggestionDismissed && peekRoute == nil && nearestRoute != nil && !isLocationUnavailable
+    }
+
+    private var nearestRoute: Route? {
+        guard let user = userCoordinate else { return nil }
+        return routes.min {
+            ($0.startCoordinate?.distance(to: user) ?? .infinity) <
+            ($1.startCoordinate?.distance(to: user) ?? .infinity)
+        }
+    }
+
+    @ViewBuilder
+    private var nearestRouteSuggestion: some View {
+        if shouldShowSuggestion, let route = nearestRoute {
+            Button {
+                suggestionDismissed = true
+                peekRoute = route
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "figure.run.circle.fill")
+                        .font(.system(size: 36))
+                        .foregroundStyle(.blue)
+                        .symbolEffect(.pulse)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Nearest Route")
+                            .font(.caption2.bold())
+                            .textCase(.uppercase)
+                            .foregroundStyle(.secondary)
+                        Text(route.name)
+                            .font(.headline)
+                        if let user = userCoordinate, let start = route.startCoordinate {
+                            Text("\(Formatters.distance(start.distance(to: user))) away · tap to begin")
+                                .font(.caption)
+                                .foregroundStyle(.blue)
+                        }
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Button {
+                        withAnimation { suggestionDismissed = true }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(Color(.tertiaryLabel))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
+                .shadow(color: .black.opacity(0.14), radius: 14, y: 4)
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
 
@@ -891,26 +991,117 @@ struct CalendarHomeView: View {
     private var emptyDayView: some View {
         VStack {
             Spacer()
-            Text(emojiForSelectedDate)
-                .font(.system(size: 96))
+            Text(quoteForSelectedDate)
+                .font(.title3.italic())
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
             Spacer()
         }
         .frame(maxWidth: .infinity)
     }
 
-    /// Stable per-day emoji so each rest day keeps its character.
-    private var emojiForSelectedDate: String {
-        let day = Int(Calendar.current.startOfDay(for: selectedDate).timeIntervalSince1970) / 86_400
-        let idx = abs(day) % Self.restDayEmojis.count
-        return Self.restDayEmojis[idx]
+    private var isToday: Bool {
+        Calendar.current.isDateInToday(selectedDate)
     }
 
-    private static let restDayEmojis: [String] = [
-        "🦒", "🌮", "🦄", "🍕", "🐙", "🥑", "🦝", "🦦", "🦔", "🐧",
-        "🥨", "🦥", "🍩", "🌭", "🦩", "🐌", "🦨", "🐢", "🦛", "🐦",
-        "🍔", "🥯", "🥞", "🌯", "🥗", "🐳", "🐋", "🌈", "🛸", "🦕",
-        "🦖", "🍄", "🌵", "🦂", "🍉", "🐡", "🦞", "🪅", "🎲", "🥟",
-        "🦨", "🪐", "🛼", "🎯", "🧸", "🪼", "🦭", "🐲", "🍙", "🥒",
+    /// Today with no sessions → motivating nudge. Any other empty day → roast.
+    private var quoteForSelectedDate: String {
+        let day = Int(Calendar.current.startOfDay(for: selectedDate).timeIntervalSince1970) / 86_400
+        if isToday {
+            return Self.todayNudgeQuotes[abs(day) % Self.todayNudgeQuotes.count]
+        }
+        return Self.restDayQuotes[abs(day) % Self.restDayQuotes.count]
+    }
+
+    private static let todayNudgeQuotes: [String] = [
+        "How about a quick run? Or 2? Or 3? Or 4?",
+        "The day isn't over yet. Just saying.",
+        "One lap. That's all. One tiny lap.",
+        "Future you is rooting for present you. Loudly.",
+        "What if you laced up right now? Wild thought.",
+        "You've done harder things before breakfast.",
+        "The route isn't going to run itself. Yet.",
+        "A ten-minute run beats a zero-minute run every time.",
+        "Go outside. Touch grass. Then run past it.",
+        "You could start right now and be done before this sinks in.",
+        "Not too late. Never too late. Especially not right now.",
+        "One session. One decision. Let's go.",
+        "Your shoes are literally right there.",
+        "The only bad workout is the one that didn't happen today.",
+        "You didn't come this far to skip today.",
+        "The run is short. The feeling after is long.",
+        "Champion energy available. Currently unclaimed.",
+        "Still today. Still time. Still you.",
+    ]
+
+    private static let restDayQuotes: [String] = [
+        "The couch called. You answered every time.",
+        "A+ for showing up. F for moving.",
+        "Rest day, or just... day?",
+        "Your sneakers are collecting dust and personality.",
+        "Somewhere, a treadmill is crying.",
+        "The only reps today were lifting the remote.",
+        "You trained hard. At doing nothing.",
+        "Officially a professional rester.",
+        "The gym misses you. Probably.",
+        "Netflix: 1. Workout: 0.",
+        "Today's workout sponsored by: the couch.",
+        "You looked outside and said nope. Valid.",
+        "Invisible reps. They totally count.",
+        "Strong choice to do absolutely nothing.",
+        "Your body is a temple. Closed today.",
+        "The weights lifted themselves. You weren't there to see it.",
+        "Rest is training too. ...Probably.",
+        "Every champion needs a cloud watching day.",
+        "You burned calories blinking. That's something.",
+        "You rested so hard. Respect.",
+        "Officially fueling up for next time.",
+        "Today: recovery mode. From what? Unclear.",
+        "The road wasn't going anywhere. You matched its energy.",
+        "Legs? Never heard of them.",
+        "Zero steps taken. One hundred thoughts had.",
+        "You thought about working out. That's like half.",
+        "The bed was too comfy. A worthy opponent.",
+        "Today's pace: glacial.",
+        "Warming the bench like a pro.",
+        "You did nothing today with incredible commitment.",
+        "Peak performance at resting.",
+        "The alarm went off. You negotiated. The alarm lost.",
+        "Your future self is already judging this. Lovingly.",
+        "Saving energy for something important. TBD.",
+        "You were in the zone. The comfort zone.",
+        "Olympic-level relaxation on display here.",
+        "Somewhere, a protein shake went unmade.",
+        "You took the scenic route: straight to the sofa.",
+        "Today was brought to you by: zero effort.",
+        "You thought about lunges. That's enough.",
+        "The run will still be there tomorrow. Pinky promise.",
+        "Resting face AND resting legs. Synergy.",
+        "Even elite athletes have days like this. Probably.",
+        "Today: 0 km. Confidence: unchanged.",
+        "You looked at your running shoes and said: not today, friend.",
+        "A bold day to do absolutely zip.",
+        "Recovery is a strategy. You're very strategic.",
+        "No sessions logged. Vibe preserved.",
+        "You rested like it was your job. Nailed it.",
+        "The track was out there. You were in here. Balance.",
+        "You gave your muscles a vacation. They send their thanks.",
+        "The burpees can wait. They're very patient.",
+        "Today's training log: thoughts and prayers.",
+        "Technically, breathing is cardio.",
+        "You were at full power the whole time. Power to relax.",
+        "Your running shoes sat by the door, hopeful.",
+        "You took a step back. Literally.",
+        "A true rest day: no guilt, no gains, no problem.",
+        "The workout planned. The day laughed.",
+        "Today's miles: 0. Today's memories: unclear.",
+        "The road less traveled was, in fact, not traveled.",
+        "Rest hard. Play harder. Workout... eventually.",
+        "Today you trained your ability to not train.",
+        "A skip day is just a future motivation origin story.",
+        "You rested with intention. Very zen.",
+        "Legend has it they were going to work out. But first, a nap.",
     ]
 
     private var activeDates: Set<Date> {
@@ -924,21 +1115,68 @@ struct CalendarHomeView: View {
     }
 
     private func surgeRow(_ surge: SurgeSession) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(surge.createdAt.formatted(date: .omitted, time: .shortened))
-                .font(.headline)
-                .monospacedDigit()
-            HStack(spacing: 10) {
-                Text("\(surge.sessions.count) session\(surge.sessions.count == 1 ? "" : "s")")
-                if let dur = surge.totalDurationSeconds {
-                    Text("·")
-                    Text(Formatters.duration(dur))
-                }
+        HStack(alignment: .center, spacing: 16) {
+            // Left: start time + total elapsed
+            VStack(alignment: .leading, spacing: 3) {
+                Text(surge.createdAt.formatted(date: .omitted, time: .shortened))
+                    .font(.system(size: 17, weight: .semibold).monospacedDigit())
+                Text(surge.totalDurationSeconds.map(humanDuration) ?? "—")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            .frame(width: 88, alignment: .leading)
+
+            Rectangle()
+                .fill(Color(.separator))
+                .frame(width: 1, height: 44)
+
+            // Right: one bubble per session in order, or a funny quote if empty
+            if surge.sortedSessions.isEmpty {
+                let seed = Int(surge.createdAt.timeIntervalSince1970)
+                Text(Self.emptySessionQuotes[abs(seed) % Self.emptySessionQuotes.count])
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .italic()
+                    .lineLimit(2)
+            } else {
+                HStack(spacing: 6) {
+                    ForEach(surge.sortedSessions) { session in
+                        ZStack {
+                            Circle()
+                                .fill(Color(.tertiarySystemFill))
+                                .frame(width: 36, height: 36)
+                            Image(systemName: (session.workoutType ?? .run).systemImage)
+                                .font(.system(size: 15))
+                                .foregroundStyle(.primary)
+                        }
+                    }
+                }
+                Spacer(minLength: 0)
+            }
         }
+        .padding(.vertical, 2)
+        .contentShape(Rectangle())
     }
+
+    private func humanDuration(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds.rounded())
+        let h = total / 3600
+        let m = (total % 3600) / 60
+        if h > 0 && m > 0 { return "\(h) hr \(m) min" }
+        if h > 0 { return "\(h) hr" }
+        if m > 0 { return "\(m) min" }
+        return "< 1 min"
+    }
+
+    private static let emptySessionQuotes: [String] = [
+        "A+ for showing up. F for moving.",
+        "Invisible reps. They totally count.",
+        "Rest is training too. ...Probably.",
+        "Recovery is a strategy. You're very strategic.",
+        "You rested with intention. Very zen.",
+        "Technically, breathing is cardio.",
+        "Peak performance at resting.",
+    ]
 }
 
 // MARK: - Custom month-grid calendar with active-day dots

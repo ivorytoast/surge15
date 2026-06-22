@@ -24,6 +24,8 @@ struct ExerciseRecordingView: View {
     @State private var now = Date()
     @State private var hasSaved = false
 
+    @AppStorage(countdownDefaultKey) private var countdownDefault: Int = countdownDefaultValue
+
     @State private var isCountingDown = false
     @State private var countdownRemaining = 5
     @State private var countdownTask: Task<Void, Never>?
@@ -331,7 +333,7 @@ struct ExerciseRecordingView: View {
     // MARK: - Logic
 
     private func startCountdown() {
-        countdownRemaining = 5
+        countdownRemaining = countdownDefault
         withAnimation { isCountingDown = true }
         countdownTask = Task { @MainActor in
             while countdownRemaining > 0 && !Task.isCancelled {

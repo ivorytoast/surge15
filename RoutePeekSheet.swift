@@ -13,6 +13,7 @@ struct RoutePeekSheet: View {
     let route: Route
     let onUse: (SessionMode, Double) -> Void
 
+
     @State private var sessionMode: SessionMode = .laps
     @State private var targetLaps: Int = 1
     @State private var targetMeters: Double = 400
@@ -44,7 +45,7 @@ struct RoutePeekSheet: View {
     private var routePreviewMap: some View {
         Map(initialPosition: .automatic, interactionModes: []) {
             if route.definitionPoints.count >= 2 {
-                MapPolyline(coordinates: route.sortedDefinitionPoints.map(\.coordinate))
+                MapPolyline(coordinates: route.smoothedCoordinates(epsilon: routeDisplayEpsilon))
                     .stroke(Color.blue, lineWidth: 4)
             }
             if let start = route.startCoordinate {

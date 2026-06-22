@@ -18,6 +18,7 @@ struct surge15App: App {
             Session.self,
             SessionPoint.self,
             SurgeSession.self,
+            PlanGroup.self,
             Plan.self,
             PlanItem.self,
         ])
