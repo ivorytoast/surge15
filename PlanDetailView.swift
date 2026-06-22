@@ -7,22 +7,12 @@ import SwiftUI
 import SwiftData
 
 struct PlanDetailView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.startPlan) private var startPlan
     @Bindable var plan: Plan
-    @State private var showingDeleteConfirm = false
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 0) {
-                // Card preview — full width, live-updating
-                PlanCardView(plan: plan, featured: true)
-                    .padding(.horizontal)
-                    .padding(.top, 16)
-                    .padding(.bottom, 20)
-
-                VStack(spacing: 20) {
+            VStack(spacing: 20) {
                     // Start CTA
                     if let startPlan, !plan.items.isEmpty {
                         Button { startPlan(plan) } label: {
@@ -35,40 +25,8 @@ struct PlanDetailView: View {
                         }
                         .buttonStyle(.plain)
                         .padding(.horizontal)
+                        .padding(.top, 16)
                     }
-
-                    // Identity card
-                    VStack(alignment: .leading, spacing: 0) {
-                        detailSectionHeader("Identity")
-
-                        VStack(spacing: 0) {
-                            inlineField(label: "Name") {
-                                TextField("Plan name", text: $plan.name)
-                                    .textInputAutocapitalization(.words)
-                                    .multilineTextAlignment(.trailing)
-                            }
-
-                            Divider().padding(.leading, 16)
-
-                            inlineField(label: "Group") {
-                                Text(plan.group?.name ?? "None")
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Divider().padding(.leading, 16)
-
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text("Color")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                GradientPickerView(selectedIndex: $plan.cardGradientIndex)
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                        }
-                        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
-                    }
-                    .padding(.horizontal)
 
                     // Exercises card
                     VStack(alignment: .leading, spacing: 0) {
@@ -121,20 +79,7 @@ struct PlanDetailView: View {
                     }
                     .padding(.horizontal)
 
-                    // Danger zone
-                    Button(role: .destructive) {
-                        showingDeleteConfirm = true
-                    } label: {
-                        Label("Delete Plan", systemImage: "trash")
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
-                            .foregroundStyle(.red)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal)
-                    .padding(.bottom, 32)
-                }
+                    Spacer().frame(height: 16)
             }
         }
         .background(Color(.systemGroupedBackground))
@@ -150,15 +95,6 @@ struct PlanDetailView: View {
                 }
             }
         }
-        .alert("Delete this plan?", isPresented: $showingDeleteConfirm) {
-            Button("Cancel", role: .cancel) { }
-            Button("Delete", role: .destructive) {
-                modelContext.delete(plan)
-                dismiss()
-            }
-        } message: {
-            Text("Surge sessions previously created from this plan will keep their data.")
-        }
     }
 
     // MARK: - Helpers
@@ -172,18 +108,6 @@ struct PlanDetailView: View {
             .padding(.bottom, 6)
     }
 
-    private func inlineField<Content: View>(label: String, @ViewBuilder content: () -> Content) -> some View {
-        HStack {
-            Text(label)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Spacer()
-            content()
-                .font(.subheadline)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-    }
 }
 
 #Preview {

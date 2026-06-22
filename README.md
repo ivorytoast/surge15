@@ -99,7 +99,8 @@ During session recording, when `currentLapDistance` crosses an interior segment 
 | `Session` | `startedAt`, `endedAt`, `workoutType`, `workoutMeasure`, `targetValue`, `targetLaps`, `lapCompletedAt: [Date]`, `route?`, `surgeSession`, `points` | GPS sessions also have a route and point trace. `lapDurations` walks `lapCompletedAt`. `displayTarget` formats measure + value for UI. |
 | `SessionPoint` | timestamp, lat/lon/alt/speed/accuracy, `session` | One GPS sample inside a session. |
 | `SurgeSession` | `name`, `date` (start-of-day), `createdAt`, `plan`, `sessions` | `autoName(for:)` produces *"Morning · Jun 20"* etc. `totalDurationSeconds`, `totalDistanceMeters` aggregates. |
-| `Plan` | `name`, `createdAt`, `items` | Template. `items` cascade-delete with the plan. |
+| `PlanGroup` | `name`, `createdAt`, `cardGradientIndex`, `isFavorite`, `plans` | Named container for plans. Can be empty. Plans use `.nullify` delete rule — deleting a group orphans its plans rather than deleting them. |
+| `Plan` | `name`, `createdAt`, `items`, `group?`, `isFavorite`, `cardGradientIndex` | Template. `items` cascade-delete with the plan. Belongs to an optional `PlanGroup`. |
 | `PlanItem` | `order`, `workoutType`, `measure`, `targetValue`, `plan` | One exercise target in a plan. Route-agnostic. |
 
 Geo: `CLLocationCoordinate2D.distance(to:)` extension lives in `Item.swift`.
@@ -121,9 +122,13 @@ A single `@Observable` class wrapping `CLLocationManager`:
 | `RoutePeekSheet` | Sheet that appears when you tap a route's pin: large preview map of the route + a [Distance \| Go \| Edit] row. |
 | `EditRouteView` | Scoped to rename + delete. |
 | `CreateRouteView` | Full-screen map, top-right Record/Stop pill, bottom L/⤺/R direction pad while recording. GPS warm-up overlay on appear. |
-| `PlansHomeView` | List of plans. `+` button creates new plans. Row summary shows exercise type short names (e.g. "Run · Lunge · BBJ"). |
-| `CreatePlanView` | Inline exercise picker (type chip scroll + measure segmented control + target chip scroll) + "Add to Plan" button. Added exercises accumulate in a reorderable list below. Name is prompted via alert only at save time. |
-| `PlanDetailView` | Rename + delete a plan. Has a prominent **Start This Plan** row that calls the environment-injected `\.startPlan` closure. |
+| `PlansHomeView` | Netflix-style card layout. Row 1: horizontal scroll of `PlanGroupCardView` cards. Row 2: "For You" — always-visible smart cards for Favorite Groups and Favorite Plans. Row 3: vertical list of ungrouped plans with gradient swatch + icon row. `+` menu creates a new Group or a new Plan. |
+| `PlanGroupDetailView` | 2-column grid of `PlanCardView`s for all plans in the group. Heart + plus in toolbar. Empty state with "Add First Plan" CTA. |
+| `CreatePlanGroupView` | Sheet: live card preview, gradient swatch picker, name field. Creates an empty `PlanGroup` immediately (plans can be added later). |
+| `FavoriteGroupsView` | 2-column grid of favorited `PlanGroup`s. `ContentUnavailableView` empty state. |
+| `FavoritePlansView` | 2-column grid of favorited `Plan`s. `ContentUnavailableView` empty state. |
+| `CreatePlanView` | Plan identity at top: live card preview, gradient picker, name field, group chip picker. Inline exercise picker below. Reorderable + swipe-to-delete draft list. Save enabled when name + ≥1 item exist. |
+| `PlanDetailView` | "Start This Plan" button (if items exist) + numbered exercise list. Name shown in nav title. Heart toggle in toolbar. Color/name/group editing deferred to Settings. |
 | `SurgeSessionDetailView` | Live and past layouts. Shows elapsed timer when running. Buttons to add any exercise type. "Planned" checklist with greedy satisfaction. Sessions list with type, target, duration. |
 | `ExerciseRecordingView` | Timer-based recording for all 6 exercise types. Gate → countdown (5-4-3-2-1, adjustable) → active timer → completed summary. Chip scroll for target selection. |
 | `SessionRecordingView` | GPS-gated recording for route runs. Map overlay with color-coded distance status bar. Active screen: timer/distance/lap pills + direction-aware turn alerts. |
@@ -343,6 +348,36 @@ Both ways of selecting a route on the Routes tab now drop straight into the surg
 - List rows changed from `NavigationLink(value: route)` to a `Button` that sets `goRoute` and `showingGoSurgePicker = true` directly (no peek sheet in between).
 
 **Side effect — `RouteDetailView` is currently unreachable**. The per-route history page (best lap, average lap, sessions list, segments) is not on any tap path right now. The `.navigationDestination(for: Route.self)` registration is dead code until a new entry point is added (likely a "Stats" tile on the peek sheet or a "Past Sessions" link inside `EditRouteView`).
+
+### Iteration 20 — Plan Groups + Netflix-style Plans tab (✅ shipped)
+
+**`PlanGroup` model** added as a first-class SwiftData entity. Groups exist independently of plans — you can create an empty group and add plans to it later. The `plans` relationship uses `.nullify` so deleting a group orphans its plans rather than deleting them.
+
+**`PlansHomeView` redesigned** with a three-row layout:
+- **Row 1 — Groups**: horizontal scroll of gradient `PlanGroupCardView` cards (130×130). Tapping navigates into the group.
+- **Row 2 — For You**: always-present pair of full-width smart cards — "Favorite Groups" (links to `FavoriteGroupsView`) and "Favorite Plans" (links to `FavoritePlansView`). Visible even before any favorites exist.
+- **Row 3 — Ungrouped**: vertical list of plans not assigned to any group, each with a gradient swatch and exercise icon row.
+- `+` toolbar menu: "New Group" → `CreatePlanGroupView` sheet, "New Plan" → `CreatePlanView` sheet.
+- Nav title removed to reclaim vertical space.
+
+**New files:**
+- `CreatePlanGroupView.swift` — sheet with live gradient card preview + name field. Creates the group immediately so plans can be added on a future visit.
+- `PlanGroupDetailView.swift` — 2-column `LazyVGrid` of plan cards, heart + plus in toolbar, empty-group CTA. No editable header card; name/color editing is deferred to Settings.
+- `FavoriteGroupsView` and `FavoritePlansView` — defined at the bottom of `PlansHomeView.swift`. Each is a 2-column grid filtered by `isFavorite`, with a `ContentUnavailableView` empty state.
+
+**`CreatePlanView` updated**: plan identity section (live card preview, gradient picker, name field, group chip picker) moved to the top. Group chip picker shows "None" + all existing groups with gradient dot swatches. Preset group wired via `.onAppear`.
+
+**`PlanDetailView` simplified**: hero card preview removed, identity/color/group editor removed, delete button removed. Now shows only the "Start This Plan" CTA and the exercise list. Editing and deletion deferred to Settings.
+
+**Shared components** defined in `PlansHomeView.swift`:
+- `PlanGradient` struct + `planGradients` array (12 gradients: Ocean, Forest, Ember, Rose, Sunrise, Sky, Cherry, Midnight, Lime, Neon, Citrus, Galaxy).
+- `PlanCardView` — 170×120 pt card (or featured full-width×190) with gradient background + exercise icon bubbles.
+- `PlanGroupCardView` — 130×130 pt card with folder icon + plan count.
+- `GradientPickerView` — horizontal row of 44 pt circle swatches with checkmark on the selected one.
+- `SmartGroupCardView` — full-width card with fixed gradient for the "For You" row.
+- `SmartGroupDestination` enum (`.favoriteGroups`, `.favoritePlans`) used with `navigationDestination(for:)`.
+
+**`Session.workoutType` made optional** (`WorkoutItemType?`). Old database rows that had NULL in this column were causing a SwiftData cast crash. Making the property optional fixes it without requiring a migration.
 
 ## Possible next steps
 
