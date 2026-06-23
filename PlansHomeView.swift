@@ -49,11 +49,6 @@ struct PlanCardView: View {
             LinearGradient(colors: [.clear, .black.opacity(0.35)], startPoint: .top, endPoint: .bottom)
 
             VStack(alignment: .leading, spacing: 6) {
-                if plan.isFavorite {
-                    Image(systemName: "heart.fill")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.85))
-                }
                 Spacer()
                 Text(plan.name)
                     .font(featured ? .title2.bold() : .headline.bold())
@@ -84,6 +79,14 @@ struct PlanCardView: View {
         .frame(width: featured ? nil : 170, height: featured ? 190 : 120)
         .frame(maxWidth: featured ? .infinity : nil)
         .clipShape(RoundedRectangle(cornerRadius: 18))
+        .overlay(alignment: .topTrailing) {
+            if plan.isFavorite {
+                Image(systemName: "heart.fill")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.85))
+                    .padding(10)
+            }
+        }
     }
 }
 

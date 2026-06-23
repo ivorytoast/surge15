@@ -185,14 +185,16 @@ struct ContentView: View {
 
     /// Closure injected via `\.startPlan` environment so `PlanDetailView` can kick off
     /// a workout without knowing about the tab structure.
-    private var startPlanAction: (Plan) -> Void {
-        { plan in
+    private var startPlanAction: (Plan, Route) -> Void {
+        { plan, route in
             let surge: SurgeSession
             if let current = SurgeSession.current(in: modelContext) {
-                // Attach this plan to the current surge session if it has none yet.
                 if current.plan == nil {
                     current.plan = plan
                     current.name = plan.name
+                }
+                if current.route == nil {
+                    current.route = route
                 }
                 surge = current
             } else {
@@ -203,6 +205,7 @@ struct ContentView: View {
                     createdAt: now
                 )
                 new.plan = plan
+                new.route = route
                 modelContext.insert(new)
                 surge = new
             }
@@ -226,11 +229,11 @@ struct ContentView: View {
 // MARK: - Environment value for "start this plan"
 
 private struct StartPlanKey: EnvironmentKey {
-    static let defaultValue: ((Plan) -> Void)? = nil
+    static let defaultValue: ((Plan, Route) -> Void)? = nil
 }
 
 extension EnvironmentValues {
-    var startPlan: ((Plan) -> Void)? {
+    var startPlan: ((Plan, Route) -> Void)? {
         get { self[StartPlanKey.self] }
         set { self[StartPlanKey.self] = newValue }
     }

@@ -156,7 +156,7 @@ enum WorkoutItemType: String, Codable, CaseIterable, Identifiable {
         case .run: "figure.run"
         case .lunge: "figure.strengthtraining.functional"
         case .burpeeBroadJump: "figure.jumprope"
-        case .row: "figure.rowing"
+        case .row: "oar.2.crossed"
         case .wallBall: "figure.strengthtraining.traditional"
         case .rest: "figure.cooldown"
         }

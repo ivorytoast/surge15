@@ -10,76 +10,91 @@ struct PlanDetailView: View {
     @Environment(\.startPlan) private var startPlan
     @Bindable var plan: Plan
 
+    @Query(sort: \Route.createdAt, order: .reverse) private var routes: [Route]
+    @State private var selectedRoute: Route? = nil
+
+    private var canStart: Bool { selectedRoute != nil && !plan.items.isEmpty }
+
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) {
-                    // Start CTA
-                    if let startPlan, !plan.items.isEmpty {
-                        Button { startPlan(plan) } label: {
-                            Label("Start This Plan", systemImage: "bolt.fill")
-                                .font(.headline)
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(Color.blue, in: RoundedRectangle(cornerRadius: 14))
+            VStack(spacing: 24) {
+
+                // Route picker
+                VStack(alignment: .leading, spacing: 10) {
+                    detailSectionHeader("Choose a Route")
+
+                    if routes.isEmpty {
+                        HStack(spacing: 10) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                            Text("No routes yet — create one on the Routes tab first.")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
                         }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal)
-                        .padding(.top, 16)
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+                    } else {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                ForEach(routes) { route in
+                                    Button {
+                                        selectedRoute = route
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(route.name)
+                                                .font(.subheadline.weight(.semibold))
+                                            Text(Formatters.distance(route.distanceMeters))
+                                                .font(.caption)
+                                                .opacity(0.85)
+                                        }
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 10)
+                                        .background(
+                                            selectedRoute?.id == route.id ? Color.blue : Color(.secondarySystemGroupedBackground),
+                                            in: RoundedRectangle(cornerRadius: 12)
+                                        )
+                                        .foregroundStyle(selectedRoute?.id == route.id ? .white : .primary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.horizontal, 2)
+                            .padding(.vertical, 2)
+                        }
                     }
+                }
+                .padding(.horizontal)
+                .padding(.top, 16)
 
-                    // Exercises card
-                    VStack(alignment: .leading, spacing: 0) {
-                        detailSectionHeader("Exercises  ·  \(plan.items.count)")
+                // Exercises timeline
+                VStack(alignment: .leading, spacing: 10) {
+                    detailSectionHeader("Exercises  ·  \(plan.items.count)")
 
-                        if plan.sortedItems.isEmpty {
+                    if plan.sortedItems.isEmpty {
+                        HStack(spacing: 12) {
+                            Image(systemName: "plus.circle")
+                                .font(.title3)
+                                .foregroundStyle(.secondary)
                             Text("No exercises in this plan.")
                                 .font(.callout)
                                 .foregroundStyle(.secondary)
-                                .padding()
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
-                        } else {
-                            VStack(spacing: 0) {
-                                ForEach(Array(plan.sortedItems.enumerated()), id: \.element.id) { idx, item in
-                                    HStack(spacing: 12) {
-                                        ZStack {
-                                            Circle()
-                                                .fill(Color.blue.opacity(0.12))
-                                                .frame(width: 36, height: 36)
-                                            Image(systemName: item.workoutType.systemImage)
-                                                .font(.system(size: 15))
-                                                .foregroundStyle(.blue)
-                                        }
-
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(item.workoutType.displayName)
-                                                .font(.headline)
-                                            Text(item.displayTarget)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-
-                                        Spacer()
-
-                                        Text("\(idx + 1)")
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 10)
-
-                                    if idx < plan.sortedItems.count - 1 {
-                                        Divider().padding(.leading, 64)
-                                    }
-                                }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding()
+                        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+                    } else {
+                        let items = plan.sortedItems
+                        VStack(spacing: 0) {
+                            ForEach(Array(items.enumerated()), id: \.element.id) { idx, item in
+                                planTimelineRow(item: item, isLast: idx == items.count - 1)
                             }
-                            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
                         }
                     }
-                    .padding(.horizontal)
+                }
+                .padding(.horizontal)
 
-                    Spacer().frame(height: 16)
+                Spacer().frame(height: 16)
             }
         }
         .background(Color(.systemGroupedBackground))
@@ -88,12 +103,50 @@ struct PlanDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    plan.isFavorite.toggle()
+                    if let route = selectedRoute {
+                        startPlan?(plan, route)
+                    }
                 } label: {
-                    Image(systemName: plan.isFavorite ? "heart.fill" : "heart")
-                        .foregroundStyle(plan.isFavorite ? .red : .secondary)
+                    Text("Start")
+                        .fontWeight(.semibold)
+                }
+                .disabled(!canStart)
+            }
+        }
+    }
+
+    // MARK: - Timeline row
+
+    private func planTimelineRow(item: PlanItem, isLast: Bool) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            VStack(spacing: 0) {
+                ZStack {
+                    Circle().strokeBorder(Color(.separator), lineWidth: 2)
+                    Image(systemName: item.workoutType.systemImage)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(width: 32, height: 32)
+
+                if !isLast {
+                    Rectangle()
+                        .fill(Color(.separator).opacity(0.6))
+                        .frame(width: 2)
+                        .padding(.vertical, 2)
+                        .frame(maxHeight: .infinity)
                 }
             }
+            .frame(width: 32)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.workoutType.displayName)
+                    .font(.headline)
+                Text(item.displayTarget)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.bottom, isLast ? 0 : 16)
         }
     }
 
@@ -107,12 +160,11 @@ struct PlanDetailView: View {
             .padding(.leading, 4)
             .padding(.bottom, 6)
     }
-
 }
 
 #Preview {
     NavigationStack {
         PlanDetailView(plan: Plan(name: "HYROX Simulation"))
     }
-    .modelContainer(for: Plan.self, inMemory: true)
+    .modelContainer(for: [Plan.self, Route.self], inMemory: true)
 }

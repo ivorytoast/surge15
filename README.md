@@ -379,6 +379,45 @@ Both ways of selecting a route on the Routes tab now drop straight into the surg
 
 **`Session.workoutType` made optional** (`WorkoutItemType?`). Old database rows that had NULL in this column were causing a SwiftData cast crash. Making the property optional fixes it without requiring a migration.
 
+### Iteration 21 — Unified workout timeline + plan-driven action bar (✅ shipped)
+
+A top-to-bottom redesign of `SurgeSessionDetailView` and related surfaces to make the live workout flow feel intentional and controllable.
+
+**Live nav title — elapsed timer.**
+The navigation bar title now shows the running elapsed time (`00:00`) instead of the surge session name. Color is reactive: white while active, orange while paused, and flashes green for 1 s on resume. Implemented via a `.principal` `ToolbarItem` with a computed `titleColor` and a `flashingGreen` `@State` toggle.
+
+**Unified timeline.**
+Ad-hoc recorded sessions are no longer shown in a separate "Additional" section below the plan checklist. They're interleaved chronologically in a single timeline alongside plan items and queued exercises, using a private `SurgeTimelineEntry` enum with three cases: `.planItem`, `.adHocSession`, `.pending`.
+
+**Exercise queue instead of immediate start.**
+Tapping `+` to add an exercise now opens `ExerciseConfigSheet` — a modal where you pick measure + target — then appends the exercise to the end of the future timeline as a `PendingExercise`. Nothing starts until you press Start. This makes queued exercises first-class citizens you can reorder before committing.
+
+**Reorder sheet.**
+When there are any future items (plan or queued), an "↕ Reorder" button appears in the workout timeline section header. It opens `ReorderSheet` — a `List` in always-active edit mode that lets you drag reorder the full future queue (plan items + pending exercises interleaved). Items already completed or in progress are shown as frozen (non-draggable). The `applyReorder` function splits the result back into `timelineOrder` and `pendingAdHocItems`. The sheet always opens at full height (`.large` detent only) to prevent the last row from colliding with the sheet's bottom edge.
+
+**Redesigned action bar.**
+The five-button bar at the bottom now reads left-to-right: **Back · Skip · Start · Pause↔Go · Stop**.
+- **Back** — undoes the last skip (plan item or queued exercise).
+- **Skip** — marks the current item (plan or pending) as skipped; it remains visible in the timeline as italic + "Skipped" with a forward-arrow circle icon.
+- **Start** (center, 50 pt green `play.circle.fill`) — launches the current plan item or the first non-skipped queued exercise. Disabled when nothing is actionable.
+- **Pause / Go** — toggles pause state; nav title turns orange while paused, flashes green on resume.
+- **Stop** — confirms ending the workout.
+
+**Skip works for queued exercises.**
+Previously Skip was disabled when no plan item was current. Now it also skips the first non-skipped queued exercise. Skipped pending exercises stay visible in the timeline (matching plan item skipped style) and Back restores them in reverse order. Implemented via `skippedPendingIDs: [UUID]` alongside the existing `skippedItems: [PersistentIdentifier]` for plan items.
+
+**Gate bypass for plan items.**
+`ExerciseRecordingView` now accepts optional `measure` and `targetValue` init parameters. When both are provided (as they always are when launching from a plan item), `skipGate = true` and the view auto-starts the countdown on `.onAppear`, skipping the measure/target config screen entirely.
+
+**PlanDetailView — vertical timeline + Start toolbar button.**
+The exercise card list in `PlanDetailView` was replaced with a connected vertical timeline (`planTimelineRow`) matching the style of the workout timeline. The heart toggle in the toolbar was removed; a **Start** button (disabled until a route is selected) takes its place. The "Start This Plan" bottom CTA was removed.
+
+**Heart moved to PlanCardView.**
+The favorite heart indicator was moved from the `PlanDetailView` toolbar into the top-right corner of `PlanCardView` (the gradient card), shown as a small `heart.fill` overlay on top of the card clip shape.
+
+**Completed ad-hoc sessions — green checkmark circle.**
+The `+` icon on ad-hoc session rows in the timeline was changed to a green `checkmark.circle.fill` to visually distinguish "done" from "add".
+
 ## Possible next steps
 
 - **Break countdown in `ExerciseRecordingView`** — currently a Break records elapsed time like any other exercise. It should count *down* from the target instead of counting up, and auto-complete when it reaches zero.

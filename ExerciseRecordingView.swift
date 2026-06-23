@@ -23,6 +23,8 @@ struct ExerciseRecordingView: View {
     @State private var endedAt: Date?
     @State private var now = Date()
     @State private var hasSaved = false
+    /// When true, skip the gate screen and jump straight to the countdown on appear.
+    @State private var skipGate: Bool
 
     @AppStorage(countdownDefaultKey) private var countdownDefault: Int = countdownDefaultValue
 
@@ -36,20 +38,27 @@ struct ExerciseRecordingView: View {
     private let repPresets: [Double]    = [5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100]
     private let minutePresets: [Double] = [0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 7, 10, 15, 20]
 
-    init(workoutType: WorkoutItemType, surgeSession: SurgeSession? = nil) {
+    init(
+        workoutType: WorkoutItemType,
+        measure: WorkoutMeasure? = nil,
+        targetValue: Double? = nil,
+        surgeSession: SurgeSession? = nil
+    ) {
         self.workoutType = workoutType
         self.surgeSession = surgeSession
-        let defaultMeasure = workoutType.availableMeasures[0]
-        _measure = State(initialValue: defaultMeasure)
-        let defaultTarget: Double = {
+        let resolvedMeasure = measure ?? workoutType.availableMeasures[0]
+        _measure = State(initialValue: resolvedMeasure)
+        let resolvedTarget = targetValue ?? {
             switch workoutType {
-            case .run:  return 400
-            case .row:  return 1000
-            case .rest: return 2
-            default:    return defaultMeasure == .meters || defaultMeasure == .yards ? 24 : 10
+            case .run:  return 400.0
+            case .row:  return 1000.0
+            case .rest: return 2.0
+            default:    return resolvedMeasure == .meters || resolvedMeasure == .yards ? 24.0 : 10.0
             }
         }()
-        _targetValue = State(initialValue: defaultTarget)
+        _targetValue = State(initialValue: resolvedTarget)
+        // Skip the gate when the caller already provided a configured target
+        _skipGate = State(initialValue: measure != nil || targetValue != nil)
     }
 
     private var isActive: Bool { startedAt != nil && endedAt == nil && !isCountingDown }
@@ -87,6 +96,11 @@ struct ExerciseRecordingView: View {
             while !Task.isCancelled {
                 now = Date()
                 try? await Task.sleep(for: .seconds(1))
+            }
+        }
+        .onAppear {
+            if skipGate && startedAt == nil && !hasSaved {
+                startCountdown()
             }
         }
         .onDisappear { countdownTask?.cancel() }
