@@ -13,6 +13,7 @@ import CoreLocation
 final class Route {
     var name: String
     var createdAt: Date
+    var isFavorite: Bool = false
 
     @Relationship(deleteRule: .cascade, inverse: \RoutePoint.route)
     var definitionPoints: [RoutePoint] = []
@@ -259,6 +260,8 @@ final class Plan {
 
     @Relationship(deleteRule: .cascade, inverse: \PlanItem.plan)
     var items: [PlanItem] = []
+    @Relationship(inverse: \SurgeSession.plan)
+    var surgeSessions: [SurgeSession] = []
     var group: PlanGroup?
     var isFavorite: Bool = false
     var cardGradientIndex: Int = 0

@@ -12,6 +12,101 @@ The app must make the following three things **SUPER EASY** and **STRAIGHTFORWAR
 2. **Doing an exercise session on that route** — executing one run on a saved route.
 3. **Analyzing your past sessions** — seeing how you're improving over time on the same loop.
 
+## Two Core Actions
+
+The app does two things. Everything else exists to support them.
+
+### 1. Run a Route
+
+Go outside. Run your loop. See how fast you did it.
+
+```
+⚡ Surge tab
+  → "Run a Route"
+  → Routes tab — tap a route pin or list row
+  → Peek sheet — tap Go
+  → Walk to start line (GPS gates the start)
+  → Countdown → Running → Auto-lap → Done
+  → Back to workout timeline
+```
+
+**What makes this work:**
+- A saved Route (your personal GPS loop)
+- GPS fix within 20 m of the start line before you can begin
+- Auto-lap triggers the moment you hit the loop distance — no manual tap
+- Turn alerts fire at each segment boundary so you know when to change direction
+
+### 2. Execute a Plan
+
+Follow a structured workout. Run, exercise, run, exercise, repeat.
+
+```
+⚡ Surge tab
+  → "Execute a Plan"
+  → Plans tab — tap a plan
+  → Pick a route → tap Start
+  → Workout timeline opens
+  → Work through each exercise in order
+  → Each item: Start → Countdown → Do the work → Done → next item
+  → Workout Complete
+```
+
+**Two modes:**
+- **Manual** — you tap Start on each exercise when you're ready
+- **Auto** — exercises and rest timers chain automatically; you just do the work
+
+### Supporting features
+
+Everything below exists only to make the two flows above possible or better.
+
+| Feature | Why it exists |
+|---|---|
+| **Create a Route** | You need a route before you can run one |
+| **Create a Plan** | You need a plan before you can execute one |
+| **Exercise Library** | Add custom exercises so your plan reflects your actual workout |
+| **Settings → Countdown** | Control how long the "get ready" timer runs before each exercise |
+| **Settings → Rest Duration** | Control how long Auto mode rests between exercises |
+| **Analytics** | Answer "am I getting faster?" after running the same route repeatedly |
+| **Session History / Calendar** | See what you've done and when |
+| **Plan Groups** | Organize plans when you have several (HYROX, strength, etc.) |
+| **Rename / Delete / Move** | Keep your library clean as your training evolves |
+
+---
+
+## Color Palette
+
+A navy-to-bright-blue spine with light-blue accents, on clean white/slate neutrals. **Always consult this before choosing any color.**
+
+### Core brand (navy → blue)
+
+| Hex | Role |
+|---|---|
+| `#1e3a8a` | Primary navy — app-icon tile, heading accents |
+| `#0e1430` | Deep navy dark — hero gradient |
+| `#070a18` | Deepest navy — hero gradient |
+| `#15235a` | Mid navy — gradient stop |
+| `#2563eb` | Primary blue — links, feature numbers, accents |
+
+### Light blues ("surge" accents)
+
+| Hex | Role |
+|---|---|
+| `#60a5fa` | Light blue — surge line, accent highlight |
+| `#5a8df0` | Softer blue — dark-icon variant line |
+| `#93c5fd` | Pale blue — dotted trail, secondary |
+| `#bfdbfe` | Very light blue — card top-border |
+| `#dbeafe` | Lightest blue tint — gradients |
+
+### Neutrals / text
+
+| Hex | Role |
+|---|---|
+| `#ffffff` | White — icon "15", text on dark |
+| `#0f172a` | Ink — body text on light |
+| `#c2cde4` | Light slate — tagline on dark hero |
+| `#9fb0d4` | Muted slate — captions, placeholders |
+| `#f5f8fd` | Soft off-white blue — alternating section backgrounds |
+
 ## Design
 
 ### Three core nouns
@@ -451,6 +546,65 @@ The `+` icon on ad-hoc session rows in the timeline was changed to a green `chec
 - **Group rename & delete**: `PlanGroupDetailView` toolbar gains a `…` menu — "Rename Group" (alert with text field) and "Delete Group" (confirmation alert; plans become ungrouped, not deleted, via the existing `.nullify` delete rule).
 - **Plan rename & delete**: `PlanDetailView` toolbar gains a `…` menu — "Rename Plan" (alert with text field) and "Delete Plan" (confirmation alert; plan and all its `PlanItem`s are permanently removed).
 - **Move plan to group**: "Add to Group" / "Move to Group" opens `MovePlanToGroupSheet` — a list of all groups with gradient swatches and a checkmark on the current group. Tapping any group moves the plan instantly. "Remove from Group" appears when the plan already belongs to one.
+
+### Iteration 23 — UI consistency polish, brand color system, surge intent redesign (✅ shipped)
+
+A wide sweep of visual consistency and UX clarity changes across the Plans, Routes, and Surge tabs.
+
+**Run count badges replace gradient swatches in plan rows** (`PlansHomeView.swift`)
+- Every plan row on the Plans tab (All Plans section, Favorite Plans, Group detail) now shows a rounded-rectangle badge containing the number of times the plan has been executed, instead of a colored gradient swatch.
+- Badge uses brand light-blue background and brand primary-blue number text to match the app's color palette.
+- Plans are sorted by `surgeSessions.count` descending — most-used plans rise to the top.
+- Required adding `@Relationship(inverse: \SurgeSession.plan) var surgeSessions: [SurgeSession] = []` to the `Plan` model in `Item.swift`. No migration needed — `SurgeSession.plan` already existed; this just adds the inverse accessor.
+
+**"All Plans" shows every plan** (`PlansHomeView.swift`)
+- The section formerly titled "Ungrouped" was renamed to "All Plans" and now shows every plan regardless of group membership.
+- Users can use it as a flat view of all plans sorted by run count without needing to dig into groups.
+
+**"Change Color" in group context menu** (`PlansHomeView.swift`)
+- Long-pressing a group card now includes a "Change Color" option alongside "Rename Group" and "Delete Group".
+- Opens a new `GroupColorPickerSheet` with a live card preview at the top and the full gradient picker below — same picker used in `CreatePlanGroupView`.
+
+**`PlanGroupDetailView` converted to row list** (`PlanGroupDetailView.swift`)
+- Replaced the 2-column `LazyVGrid` of plan cards with a vertical row list styled identically to the All Plans section.
+- Each row has: run count badge · plan name · exercise count · heart indicator · chevron · inset divider.
+- Row long-press context menu: Rename Plan, Move to Group, Delete Plan.
+- Fixed a safe-area overlap bug: content was scrolling behind the navigation bar because `.background(pageBackground.ignoresSafeArea())` was applied directly to the `ScrollView`, confusing SwiftUI's content inset calculation. Fixed by moving the background into a `ZStack` sibling beneath the `ScrollView`.
+
+**Heart toggle restored to `PlanDetailView` toolbar** (`PlanDetailView.swift`)
+- The favorite heart button (removed in an earlier iteration) was added back next to the Start button in the navigation toolbar.
+- Tapping toggles `plan.isFavorite` and updates the icon and color (filled red when favorited).
+
+**Route session count badge** (`ContentView.swift`)
+- Routes list rows now show a rounded-rectangle badge with the number of times the route has been run, replacing the generic running-figure SF Symbol icon that was the same for every route.
+- Same badge visual treatment as plan rows (brand palette).
+
+**`FavoritePlansView` redesigned to row list** (`PlansHomeView.swift`)
+- Replaced the 2-column plan card grid with a vertical row list using the same style as All Plans.
+- Sorted by run count descending. Always-visible heart indicator. Context menu with Rename Plan, Move to Group, Delete Plan (with confirmation).
+
+**`FavoriteGroupsView` redesigned to row list** (`PlansHomeView.swift`)
+- Replaced the 2-column group card grid with a vertical row list.
+- Each row shows the group's gradient swatch (28×28 rounded rectangle), group name, plan count, and chevron.
+- Context menu with Rename Group, Change Color, Delete Group (with confirmation).
+
+**Delete confirmations everywhere**
+- Groups, plans, and routes all require an alert confirmation before deletion. No item can be deleted with a single tap.
+- Implemented via optional state bindings: `deletingGroup: PlanGroup?`, `deletingPlan: Plan?`, `deletingRoute: Route?`. Alert binding uses `Binding(get: { state != nil }, set: { if !$0 { state = nil } })` pattern.
+
+**`SurgeIntentView` complete redesign** (`ContentView.swift`)
+- Changed from `.fullScreenCover` to `.sheet` so the view can be dismissed by dragging down, matching every other sheet in the app.
+- Fixed height: `presentationDetents([.height(320)])` — no wasted space, no medium-detent dead zone.
+- Background color: `presentationBackground(pageBackground)` colors the entire sheet presentation (not just the view frame) so dark mode shows a solid navy behind both tiles, not a black box.
+- Brand gradients: "Run a Route" tile uses `#1e3a8a → #2563eb`; "Execute a Plan" tile uses `#15235a → #60a5fa`. Previous versions had purple/green gradients that violated the color palette.
+- Count capsule badges in the top-right corner of each tile: number of routes or plans saved. Shows an orange `exclamationmark.triangle.fill` when count is 0.
+- Orange empty-nudge strip below each tile when count is 0 ("Create a route first to run one" / "Create a plan first to execute one").
+- 65 funny motivational quotes displayed above the two tiles. A new random quote is picked on each `.onAppear` (not on init — SwiftUI preserves `@State` across sheet dismissals, so `.onAppear` is required to re-randomize).
+
+**Calendar future-date quotes** (`ContentView.swift` / `CalendarHomeView`)
+- Tapping a future day on the calendar now shows a playful "you're planning ahead" quote instead of a rest-day quote.
+- 15 quotes with a light, forward-looking tone (e.g. "Woah, you're already planning your workout for this day.").
+- Implemented via an `isFuture: Bool` computed property on the selected date; `quoteForSelectedDate` checks this before falling back to `restDayQuotes`.
 
 ## Possible next steps
 

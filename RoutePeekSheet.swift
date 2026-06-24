@@ -25,6 +25,20 @@ struct RoutePeekSheet: View {
 
     var body: some View {
         VStack(spacing: 14) {
+            HStack {
+                Text(route.name)
+                    .font(.headline)
+                Spacer()
+                Button {
+                    route.isFavorite.toggle()
+                } label: {
+                    Image(systemName: route.isFavorite ? "heart.fill" : "heart")
+                        .font(.system(size: 20))
+                        .foregroundStyle(route.isFavorite ? .pink : Color(.tertiaryLabel))
+                }
+                .buttonStyle(.plain)
+            }
+
             routePreviewMap
 
             HStack(spacing: 10) {

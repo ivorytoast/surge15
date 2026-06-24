@@ -9,17 +9,11 @@ import SwiftData
 struct PlanDetailView: View {
     @Environment(\.startPlan) private var startPlan
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
     @Bindable var plan: Plan
 
     @Query(sort: \Route.createdAt, order: .reverse) private var routes: [Route]
-    @Query(sort: \PlanGroup.createdAt, order: .reverse) private var allGroups: [PlanGroup]
 
     @State private var selectedRoute: Route? = nil
-    @State private var showingRename = false
-    @State private var renameText = ""
-    @State private var showingDeleteConfirm = false
-    @State private var showingMoveToGroup = false
 
     private var canStart: Bool { selectedRoute != nil && !plan.items.isEmpty }
 
@@ -111,39 +105,12 @@ struct PlanDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 HStack(spacing: 16) {
-                    Menu {
-                        Button {
-                            renameText = plan.name
-                            showingRename = true
-                        } label: {
-                            Label("Rename Plan", systemImage: "pencil")
-                        }
-
-                        if !allGroups.isEmpty {
-                            Button {
-                                showingMoveToGroup = true
-                            } label: {
-                                Label(plan.group == nil ? "Add to Group" : "Move to Group", systemImage: "folder")
-                            }
-                        }
-
-                        if plan.group != nil {
-                            Button {
-                                plan.group = nil
-                            } label: {
-                                Label("Remove from Group", systemImage: "folder.badge.minus")
-                            }
-                        }
-
-                        Button(role: .destructive) {
-                            showingDeleteConfirm = true
-                        } label: {
-                            Label("Delete Plan", systemImage: "trash")
-                        }
+                    Button {
+                        plan.isFavorite.toggle()
                     } label: {
-                        Image(systemName: "ellipsis.circle")
+                        Image(systemName: plan.isFavorite ? "heart.fill" : "heart")
+                            .foregroundStyle(plan.isFavorite ? .red : .secondary)
                     }
-
                     Button {
                         if let route = selectedRoute {
                             startPlan?(plan, route)
@@ -155,26 +122,6 @@ struct PlanDetailView: View {
                     .disabled(!canStart)
                 }
             }
-        }
-        .alert("Rename Plan", isPresented: $showingRename) {
-            TextField("Plan name", text: $renameText)
-            Button("Save") {
-                let t = renameText.trimmingCharacters(in: .whitespaces)
-                if !t.isEmpty { plan.name = t }
-            }
-            Button("Cancel", role: .cancel) { }
-        }
-        .alert("Delete Plan?", isPresented: $showingDeleteConfirm) {
-            Button("Delete", role: .destructive) {
-                modelContext.delete(plan)
-                dismiss()
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("This plan and all its exercises will be permanently deleted.")
-        }
-        .sheet(isPresented: $showingMoveToGroup) {
-            MovePlanToGroupSheet(plan: plan, groups: allGroups)
         }
     }
 

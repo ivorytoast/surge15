@@ -9,35 +9,70 @@ import SwiftData
 struct PlanGroupDetailView: View {
     @Bindable var group: PlanGroup
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+
+    @Query(sort: \PlanGroup.createdAt, order: .reverse) private var allGroups: [PlanGroup]
 
     @State private var showingCreatePlan = false
-    @State private var showingRename = false
-    @State private var renameText = ""
-    @State private var showingDeleteConfirm = false
 
-    private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+    // Plan actions (triggered by long-press on plan row)
+    @State private var renamingPlan: Plan? = nil
+    @State private var planRenameText = ""
+    @State private var movingPlan: Plan? = nil
+    @State private var deletingPlan: Plan? = nil
+
+    // MARK: - Adaptive palette (mirrors PlansHomeView)
+    private var isLight: Bool { colorScheme == .light }
+    private var pageBackground: Color { isLight ? Color(red: 0.961, green: 0.973, blue: 0.992) : Color(red: 0.027, green: 0.039, blue: 0.094) }
+    private var rowBackground: Color { isLight ? .white : Color(red: 0.055, green: 0.078, blue: 0.188) }
+    private var headingColor: Color { isLight ? Color(red: 0.059, green: 0.090, blue: 0.165) : .white }
+    private var rowIconColor: Color { isLight ? Color(red: 0.624, green: 0.690, blue: 0.831) : Color(red: 0.761, green: 0.804, blue: 0.894) }
+    private var rowChevronColor: Color { isLight ? Color(red: 0.761, green: 0.804, blue: 0.894) : Color(red: 0.624, green: 0.690, blue: 0.831) }
+    private var sectionLabelColor: Color { isLight ? Color(red: 0.145, green: 0.388, blue: 0.922) : Color(red: 0.376, green: 0.647, blue: 0.980) }
+
+    private var sortedPlans: [Plan] {
+        group.plans.sorted { $0.surgeSessions.count > $1.surgeSessions.count }
+    }
 
     var body: some View {
         Group {
-            if group.sortedPlans.isEmpty {
+            if sortedPlans.isEmpty {
                 emptyGroupState
             } else {
-                ScrollView {
-                    LazyVGrid(columns: columns, spacing: 12) {
-                        ForEach(group.sortedPlans) { plan in
-                            NavigationLink(value: plan) {
-                                PlanCardView(plan: plan)
-                                    .frame(maxWidth: .infinity)
+                ZStack {
+                    pageBackground.ignoresSafeArea()
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            ForEach(Array(sortedPlans.enumerated()), id: \.element.id) { idx, plan in
+                                NavigationLink(value: plan) {
+                                    planRow(plan, isLast: idx == sortedPlans.count - 1)
+                                }
+                                .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button {
+                                        planRenameText = plan.name
+                                        renamingPlan = plan
+                                    } label: {
+                                        Label("Rename Plan", systemImage: "pencil")
+                                    }
+                                    Button { movingPlan = plan } label: {
+                                        Label("Move to Group", systemImage: "folder")
+                                    }
+                                    Button(role: .destructive) {
+                                        deletingPlan = plan
+                                    } label: {
+                                        Label("Delete Plan", systemImage: "trash")
+                                    }
+                                }
                             }
-                            .buttonStyle(.plain)
                         }
+                        .background(rowBackground, in: RoundedRectangle(cornerRadius: 14))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 16)
                     }
-                    .padding()
                 }
             }
         }
-        .background(Color(.systemGroupedBackground))
         .navigationTitle(group.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -54,21 +89,6 @@ struct PlanGroupDetailView: View {
                     } label: {
                         Image(systemName: "plus")
                     }
-                    Menu {
-                        Button {
-                            renameText = group.name
-                            showingRename = true
-                        } label: {
-                            Label("Rename Group", systemImage: "pencil")
-                        }
-                        Button(role: .destructive) {
-                            showingDeleteConfirm = true
-                        } label: {
-                            Label("Delete Group", systemImage: "trash")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
                 }
             }
         }
@@ -78,22 +98,77 @@ struct PlanGroupDetailView: View {
         .sheet(isPresented: $showingCreatePlan) {
             CreatePlanView(presetGroup: group)
         }
-        .alert("Rename Group", isPresented: $showingRename) {
-            TextField("Group name", text: $renameText)
-            Button("Save") {
-                let t = renameText.trimmingCharacters(in: .whitespaces)
-                if !t.isEmpty { group.name = t }
-            }
-            Button("Cancel", role: .cancel) { }
+        .sheet(item: $movingPlan) { plan in
+            MovePlanToGroupSheet(plan: plan, groups: allGroups)
         }
-        .alert("Delete Group?", isPresented: $showingDeleteConfirm) {
-            Button("Delete", role: .destructive) {
-                modelContext.delete(group)
-                dismiss()
+        .alert("Rename Plan", isPresented: Binding(
+            get: { renamingPlan != nil },
+            set: { if !$0 { renamingPlan = nil } }
+        )) {
+            TextField("Plan name", text: $planRenameText)
+            Button("Save") {
+                let t = planRenameText.trimmingCharacters(in: .whitespaces)
+                if !t.isEmpty { renamingPlan?.name = t }
+                renamingPlan = nil
             }
-            Button("Cancel", role: .cancel) { }
+            Button("Cancel", role: .cancel) { renamingPlan = nil }
+        }
+        .alert("Delete Plan", isPresented: Binding(
+            get: { deletingPlan != nil },
+            set: { if !$0 { deletingPlan = nil } }
+        )) {
+            Button("Delete", role: .destructive) {
+                if let plan = deletingPlan { modelContext.delete(plan) }
+                deletingPlan = nil
+            }
+            Button("Cancel", role: .cancel) { deletingPlan = nil }
         } message: {
-            Text("Plans in this group will become ungrouped.")
+            Text("Are you sure you want to delete \"\(deletingPlan?.name ?? "")\"? This cannot be undone.")
+        }
+    }
+
+    // MARK: - Plan row
+
+    private func planRow(_ plan: Plan, isLast: Bool) -> some View {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isLight ? Color(red: 0.878, green: 0.922, blue: 0.996) : Color(red: 0.118, green: 0.227, blue: 0.541))
+                    .frame(width: 36, height: 36)
+                Text("\(plan.surgeSessions.count)")
+                    .font(.headline.bold())
+                    .foregroundStyle(sectionLabelColor)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(plan.name)
+                    .font(.headline)
+                    .foregroundStyle(headingColor)
+                Text("\(plan.items.count) exercise\(plan.items.count == 1 ? "" : "s")")
+                    .font(.caption)
+                    .foregroundStyle(rowIconColor)
+            }
+
+            Spacer()
+
+            if plan.isFavorite {
+                Image(systemName: "heart.fill")
+                    .font(.caption)
+                    .foregroundStyle(Color(red: 0.922, green: 0.302, blue: 0.400))
+            }
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(rowChevronColor)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .contentShape(Rectangle())
+        .overlay(alignment: .bottom) {
+            if !isLast {
+                Color(isLight ? Color(red: 0.749, green: 0.859, blue: 0.996) : Color(red: 0.118, green: 0.227, blue: 0.541))
+                    .frame(height: 0.5)
+                    .padding(.leading, 64)
+            }
         }
     }
 

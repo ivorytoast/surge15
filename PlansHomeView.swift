@@ -76,7 +76,7 @@ struct PlanCardView: View {
             }
             .padding(14)
         }
-        .frame(width: featured ? nil : 170, height: featured ? 190 : 120)
+        .frame(width: featured ? nil : 130, height: featured ? 190 : 118)
         .frame(maxWidth: featured ? .infinity : nil)
         .clipShape(RoundedRectangle(cornerRadius: 18))
         .overlay(alignment: .topTrailing) {
@@ -124,7 +124,7 @@ struct PlanGroupCardView: View {
             }
             .padding(12)
         }
-        .frame(width: 130, height: 130)
+        .frame(width: 130, height: 118)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
@@ -198,7 +198,7 @@ struct SmartGroupCardView: View {
             .padding(12)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 130)
+        .frame(height: 118)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
@@ -207,15 +207,45 @@ struct SmartGroupCardView: View {
 
 struct PlansHomeView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
     @Query(sort: \PlanGroup.createdAt, order: .reverse) private var groups: [PlanGroup]
     @Query(sort: \Plan.createdAt, order: .reverse) private var allPlans: [Plan]
 
     @State private var showingCreateGroup = false
     @State private var showingCreatePlan  = false
 
-    private var ungroupedPlans: [Plan] { allPlans.filter { $0.group == nil } }
+    // Group rename/delete/recolor (triggered from long-press on group card)
+    @State private var renamingGroup: PlanGroup? = nil
+    @State private var groupRenameText = ""
+    @State private var recoloringGroup: PlanGroup? = nil
+    @State private var deletingGroup: PlanGroup? = nil
+
+    // Plan rename/delete/move (triggered from long-press on plan row)
+    @State private var renamingPlan: Plan? = nil
+    @State private var planRenameText = ""
+    @State private var movingPlan: Plan? = nil
+    @State private var deletingPlan: Plan? = nil
+
+    private var allPlansSorted: [Plan] {
+        allPlans.sorted { $0.surgeSessions.count > $1.surgeSessions.count }
+    }
     private var favoriteGroupCount: Int { groups.filter { $0.isFavorite }.count }
     private var favoritePlanCount: Int  { allPlans.filter { $0.isFavorite }.count }
+
+    // MARK: - Adaptive palette
+    private var isLight: Bool { colorScheme == .light }
+    // #f5f8fd ↔ #070a18
+    private var pageBackground: Color { isLight ? Color(red: 0.961, green: 0.973, blue: 0.992) : Color(red: 0.027, green: 0.039, blue: 0.094) }
+    // white ↔ #0e1430
+    private var rowBackground: Color { isLight ? .white : Color(red: 0.055, green: 0.078, blue: 0.188) }
+    // #0f172a ↔ white
+    private var headingColor: Color { isLight ? Color(red: 0.059, green: 0.090, blue: 0.165) : .white }
+    // #9fb0d4 ↔ #c2cde4
+    private var rowIconColor: Color { isLight ? Color(red: 0.624, green: 0.690, blue: 0.831) : Color(red: 0.761, green: 0.804, blue: 0.894) }
+    // #c2cde4 ↔ #9fb0d4
+    private var rowChevronColor: Color { isLight ? Color(red: 0.761, green: 0.804, blue: 0.894) : Color(red: 0.624, green: 0.690, blue: 0.831) }
+    // #2563eb ↔ #60a5fa
+    private var sectionLabelColor: Color { isLight ? Color(red: 0.145, green: 0.388, blue: 0.922) : Color(red: 0.376, green: 0.647, blue: 0.980) }
 
     var body: some View {
         NavigationStack {
@@ -234,12 +264,13 @@ struct PlansHomeView: View {
                             forYouRow
 
                             // Row 3: Ungrouped plans
-                            if !ungroupedPlans.isEmpty {
+                            if !allPlansSorted.isEmpty {
                                 ungroupedSection
                             }
                         }
                         .padding(.vertical)
                     }
+                    .background(pageBackground.ignoresSafeArea())
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -275,6 +306,60 @@ struct PlansHomeView: View {
             .sheet(isPresented: $showingCreatePlan) {
                 CreatePlanView()
             }
+            .sheet(item: $movingPlan) { plan in
+                MovePlanToGroupSheet(plan: plan, groups: groups)
+            }
+            .sheet(item: $recoloringGroup) { group in
+                GroupColorPickerSheet(group: group)
+            }
+            .alert("Rename Group", isPresented: Binding(
+                get: { renamingGroup != nil },
+                set: { if !$0 { renamingGroup = nil } }
+            )) {
+                TextField("Group name", text: $groupRenameText)
+                Button("Save") {
+                    let t = groupRenameText.trimmingCharacters(in: .whitespaces)
+                    if !t.isEmpty { renamingGroup?.name = t }
+                    renamingGroup = nil
+                }
+                Button("Cancel", role: .cancel) { renamingGroup = nil }
+            }
+            .alert("Rename Plan", isPresented: Binding(
+                get: { renamingPlan != nil },
+                set: { if !$0 { renamingPlan = nil } }
+            )) {
+                TextField("Plan name", text: $planRenameText)
+                Button("Save") {
+                    let t = planRenameText.trimmingCharacters(in: .whitespaces)
+                    if !t.isEmpty { renamingPlan?.name = t }
+                    renamingPlan = nil
+                }
+                Button("Cancel", role: .cancel) { renamingPlan = nil }
+            }
+            .alert("Delete Group", isPresented: Binding(
+                get: { deletingGroup != nil },
+                set: { if !$0 { deletingGroup = nil } }
+            )) {
+                Button("Delete", role: .destructive) {
+                    if let group = deletingGroup { modelContext.delete(group) }
+                    deletingGroup = nil
+                }
+                Button("Cancel", role: .cancel) { deletingGroup = nil }
+            } message: {
+                Text("Are you sure you want to delete \"\(deletingGroup?.name ?? "")\"? This cannot be undone.")
+            }
+            .alert("Delete Plan", isPresented: Binding(
+                get: { deletingPlan != nil },
+                set: { if !$0 { deletingPlan = nil } }
+            )) {
+                Button("Delete", role: .destructive) {
+                    if let plan = deletingPlan { modelContext.delete(plan) }
+                    deletingPlan = nil
+                }
+                Button("Cancel", role: .cancel) { deletingPlan = nil }
+            } message: {
+                Text("Are you sure you want to delete \"\(deletingPlan?.name ?? "")\"? This cannot be undone.")
+            }
         }
     }
 
@@ -282,8 +367,7 @@ struct PlansHomeView: View {
 
     private var forYouRow: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("For You")
-                .font(.title3.bold())
+            planSectionHeader("For You")
                 .padding(.horizontal)
 
             HStack(spacing: 12) {
@@ -292,8 +376,9 @@ struct PlansHomeView: View {
                         title: "Favorite Groups",
                         subtitle: favoriteGroupCount == 0 ? "None yet" : "\(favoriteGroupCount) group\(favoriteGroupCount == 1 ? "" : "s")",
                         icon: "heart.fill",
+                        // #1e3a8a → #2563eb  Navy → Primary Blue
                         gradient: LinearGradient(
-                            colors: [Color(red: 1.0, green: 0.25, blue: 0.4), Color(red: 0.8, green: 0.0, blue: 0.5)],
+                            colors: [Color(red: 0.118, green: 0.227, blue: 0.541), Color(red: 0.145, green: 0.388, blue: 0.922)],
                             startPoint: .topLeading, endPoint: .bottomTrailing
                         )
                     )
@@ -305,8 +390,9 @@ struct PlansHomeView: View {
                         title: "Favorite Plans",
                         subtitle: favoritePlanCount == 0 ? "None yet" : "\(favoritePlanCount) plan\(favoritePlanCount == 1 ? "" : "s")",
                         icon: "star.fill",
+                        // #15235a → #60a5fa  Mid Navy → Light Blue
                         gradient: LinearGradient(
-                            colors: [Color(red: 1.0, green: 0.6, blue: 0.0), Color(red: 0.9, green: 0.25, blue: 0.0)],
+                            colors: [Color(red: 0.082, green: 0.137, blue: 0.353), Color(red: 0.376, green: 0.647, blue: 0.980)],
                             startPoint: .topLeading, endPoint: .bottomTrailing
                         )
                     )
@@ -319,18 +405,10 @@ struct PlansHomeView: View {
 
     // MARK: - Horizontal group card row
 
-    private func groupScrollRow(title: String, icon: String? = nil, iconColor: Color = .primary, groups: [PlanGroup]) -> some View {
+    private func groupScrollRow(title: String, groups: [PlanGroup]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                if let icon {
-                    Image(systemName: icon)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(iconColor)
-                }
-                Text(title)
-                    .font(.title3.bold())
-            }
-            .padding(.horizontal)
+            planSectionHeader(title)
+                .padding(.horizontal)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
@@ -339,6 +417,24 @@ struct PlansHomeView: View {
                             PlanGroupCardView(group: group)
                         }
                         .buttonStyle(.plain)
+                        .contextMenu {
+                            Button {
+                                groupRenameText = group.name
+                                renamingGroup = group
+                            } label: {
+                                Label("Rename Group", systemImage: "pencil")
+                            }
+                            Button {
+                                recoloringGroup = group
+                            } label: {
+                                Label("Change Color", systemImage: "paintpalette")
+                            }
+                            Button(role: .destructive) {
+                                deletingGroup = group
+                            } label: {
+                                Label("Delete Group", systemImage: "trash")
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal)
@@ -350,62 +446,89 @@ struct PlansHomeView: View {
     // MARK: - Ungrouped plans (vertical list)
 
     private var ungroupedSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Ungrouped")
-                .font(.title3.bold())
+        VStack(alignment: .leading, spacing: 8) {
+            planSectionHeader("All Plans")
                 .padding(.horizontal)
-
-            VStack(spacing: 8) {
-                ForEach(ungroupedPlans) { plan in
+            VStack(spacing: 0) {
+                ForEach(Array(allPlansSorted.enumerated()), id: \.element.id) { idx, plan in
                     NavigationLink(value: plan) {
-                        ungroupedPlanRow(plan)
+                        ungroupedPlanRow(plan, isLast: idx == allPlansSorted.count - 1)
                     }
                     .buttonStyle(.plain)
+                    .contextMenu {
+                        Button {
+                            planRenameText = plan.name
+                            renamingPlan = plan
+                        } label: {
+                            Label("Rename Plan", systemImage: "pencil")
+                        }
+                        if !groups.isEmpty {
+                            Button { movingPlan = plan } label: {
+                                Label("Add to Group", systemImage: "folder")
+                            }
+                        }
+                        Button(role: .destructive) {
+                            deletingPlan = plan
+                        } label: {
+                            Label("Delete Plan", systemImage: "trash")
+                        }
+                    }
                 }
             }
-            .padding(.horizontal)
+            .background(rowBackground, in: RoundedRectangle(cornerRadius: 14))
+            .padding(.horizontal, 16)
         }
+        .padding(.bottom, 24)
     }
 
-    private func ungroupedPlanRow(_ plan: Plan) -> some View {
-        HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(planGradients[plan.cardGradientIndex % planGradients.count].linear)
-                .frame(width: 44, height: 44)
-                .overlay {
-                    if plan.isFavorite {
-                        Image(systemName: "heart.fill")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.white)
-                    }
-                }
+    private func ungroupedPlanRow(_ plan: Plan, isLast: Bool) -> some View {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isLight ? Color(red: 0.878, green: 0.922, blue: 0.996) : Color(red: 0.118, green: 0.227, blue: 0.541))
+                    .frame(width: 36, height: 36)
+                Text("\(plan.surgeSessions.count)")
+                    .font(.headline.bold())
+                    .foregroundStyle(sectionLabelColor)
+            }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(plan.name)
                     .font(.headline)
-                    .foregroundStyle(.primary)
-                HStack(spacing: 5) {
-                    ForEach(plan.sortedItems.prefix(6)) { item in
-                        Image(systemName: item.workoutType.systemImage)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
-                    if plan.items.count > 6 {
-                        Text("+\(plan.items.count - 6)")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                    .foregroundStyle(headingColor)
+                Text("\(plan.items.count) exercise\(plan.items.count == 1 ? "" : "s")")
+                    .font(.caption)
+                    .foregroundStyle(rowIconColor)
             }
 
             Spacer()
 
+            if plan.isFavorite {
+                Image(systemName: "heart.fill")
+                    .font(.caption)
+                    .foregroundStyle(Color(red: 0.922, green: 0.302, blue: 0.400))
+            }
             Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(rowChevronColor)
         }
-        .padding(12)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .contentShape(Rectangle())
+        .overlay(alignment: .bottom) {
+            if !isLast {
+                Color(isLight ? Color(red: 0.749, green: 0.859, blue: 0.996) : Color(red: 0.118, green: 0.227, blue: 0.541))
+                    .frame(height: 0.5)
+                    .padding(.leading, 64)
+            }
+        }
+    }
+
+    private func planSectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(sectionLabelColor)
+            .textCase(.uppercase)
     }
 
     // MARK: - Empty state
@@ -422,11 +545,24 @@ struct PlansHomeView: View {
 // MARK: - Favorite Groups View
 
 struct FavoriteGroupsView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \PlanGroup.createdAt, order: .reverse) private var allGroups: [PlanGroup]
+
+    @State private var renamingGroup: PlanGroup? = nil
+    @State private var groupRenameText = ""
+    @State private var recoloringGroup: PlanGroup? = nil
+    @State private var deletingGroup: PlanGroup? = nil
 
     private var favoriteGroups: [PlanGroup] { allGroups.filter { $0.isFavorite } }
 
-    private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+    private var isLight: Bool { colorScheme == .light }
+    private var pageBackground: Color { isLight ? Color(red: 0.961, green: 0.973, blue: 0.992) : Color(red: 0.027, green: 0.039, blue: 0.094) }
+    private var rowBackground: Color { isLight ? .white : Color(red: 0.055, green: 0.078, blue: 0.188) }
+    private var headingColor: Color { isLight ? Color(red: 0.059, green: 0.090, blue: 0.165) : .white }
+    private var rowIconColor: Color { isLight ? Color(red: 0.624, green: 0.690, blue: 0.831) : Color(red: 0.761, green: 0.804, blue: 0.894) }
+    private var rowChevronColor: Color { isLight ? Color(red: 0.761, green: 0.804, blue: 0.894) : Color(red: 0.624, green: 0.690, blue: 0.831) }
+    private var sectionLabelColor: Color { isLight ? Color(red: 0.145, green: 0.388, blue: 0.922) : Color(red: 0.376, green: 0.647, blue: 0.980) }
 
     var body: some View {
         Group {
@@ -438,17 +574,37 @@ struct FavoriteGroupsView: View {
                 }
             } else {
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 12) {
-                        ForEach(favoriteGroups) { group in
+                    VStack(spacing: 0) {
+                        ForEach(Array(favoriteGroups.enumerated()), id: \.element.id) { idx, group in
                             NavigationLink(value: group) {
-                                PlanGroupCardView(group: group)
-                                    .frame(maxWidth: .infinity)
+                                groupRow(group, isLast: idx == favoriteGroups.count - 1)
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                Button {
+                                    groupRenameText = group.name
+                                    renamingGroup = group
+                                } label: {
+                                    Label("Rename Group", systemImage: "pencil")
+                                }
+                                Button {
+                                    recoloringGroup = group
+                                } label: {
+                                    Label("Change Color", systemImage: "paintpalette")
+                                }
+                                Button(role: .destructive) {
+                                    deletingGroup = group
+                                } label: {
+                                    Label("Delete Group", systemImage: "trash")
+                                }
+                            }
                         }
                     }
-                    .padding()
+                    .background(rowBackground, in: RoundedRectangle(cornerRadius: 14))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 16)
                 }
+                .background(pageBackground.ignoresSafeArea())
             }
         }
         .navigationTitle("Favorite Groups")
@@ -456,17 +612,102 @@ struct FavoriteGroupsView: View {
         .navigationDestination(for: PlanGroup.self) { group in
             PlanGroupDetailView(group: group)
         }
+        .sheet(item: $recoloringGroup) { group in
+            GroupColorPickerSheet(group: group)
+        }
+        .alert("Rename Group", isPresented: Binding(
+            get: { renamingGroup != nil },
+            set: { if !$0 { renamingGroup = nil } }
+        )) {
+            TextField("Group name", text: $groupRenameText)
+            Button("Save") {
+                let t = groupRenameText.trimmingCharacters(in: .whitespaces)
+                if !t.isEmpty { renamingGroup?.name = t }
+                renamingGroup = nil
+            }
+            Button("Cancel", role: .cancel) { renamingGroup = nil }
+        }
+        .alert("Delete Group", isPresented: Binding(
+            get: { deletingGroup != nil },
+            set: { if !$0 { deletingGroup = nil } }
+        )) {
+            Button("Delete", role: .destructive) {
+                if let group = deletingGroup { modelContext.delete(group) }
+                deletingGroup = nil
+            }
+            Button("Cancel", role: .cancel) { deletingGroup = nil }
+        } message: {
+            Text("Are you sure you want to delete \"\(deletingGroup?.name ?? "")\"? This cannot be undone.")
+        }
+    }
+
+    private func groupRow(_ group: PlanGroup, isLast: Bool) -> some View {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(planGradients[group.cardGradientIndex % planGradients.count].linear)
+                    .frame(width: 36, height: 36)
+                Text("\(group.plans.count)")
+                    .font(.headline.bold())
+                    .foregroundStyle(.white)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(group.name)
+                    .font(.headline)
+                    .foregroundStyle(headingColor)
+                Text("\(group.plans.count) plan\(group.plans.count == 1 ? "" : "s")")
+                    .font(.caption)
+                    .foregroundStyle(rowIconColor)
+            }
+
+            Spacer()
+
+            Image(systemName: "heart.fill")
+                .font(.caption)
+                .foregroundStyle(Color(red: 0.922, green: 0.302, blue: 0.400))
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(rowChevronColor)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .contentShape(Rectangle())
+        .overlay(alignment: .bottom) {
+            if !isLast {
+                Color(isLight ? Color(red: 0.749, green: 0.859, blue: 0.996) : Color(red: 0.118, green: 0.227, blue: 0.541))
+                    .frame(height: 0.5)
+                    .padding(.leading, 64)
+            }
+        }
     }
 }
 
 // MARK: - Favorite Plans View
 
 struct FavoritePlansView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Plan.createdAt, order: .reverse) private var allPlans: [Plan]
+    @Query(sort: \PlanGroup.createdAt, order: .reverse) private var groups: [PlanGroup]
 
-    private var favoritePlans: [Plan] { allPlans.filter { $0.isFavorite } }
+    @State private var renamingPlan: Plan? = nil
+    @State private var planRenameText = ""
+    @State private var movingPlan: Plan? = nil
+    @State private var deletingPlan: Plan? = nil
 
-    private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+    private var favoritePlans: [Plan] {
+        allPlans.filter { $0.isFavorite }
+            .sorted { $0.surgeSessions.count > $1.surgeSessions.count }
+    }
+
+    private var isLight: Bool { colorScheme == .light }
+    private var pageBackground: Color { isLight ? Color(red: 0.961, green: 0.973, blue: 0.992) : Color(red: 0.027, green: 0.039, blue: 0.094) }
+    private var rowBackground: Color { isLight ? .white : Color(red: 0.055, green: 0.078, blue: 0.188) }
+    private var headingColor: Color { isLight ? Color(red: 0.059, green: 0.090, blue: 0.165) : .white }
+    private var rowIconColor: Color { isLight ? Color(red: 0.624, green: 0.690, blue: 0.831) : Color(red: 0.761, green: 0.804, blue: 0.894) }
+    private var rowChevronColor: Color { isLight ? Color(red: 0.761, green: 0.804, blue: 0.894) : Color(red: 0.624, green: 0.690, blue: 0.831) }
+    private var sectionLabelColor: Color { isLight ? Color(red: 0.145, green: 0.388, blue: 0.922) : Color(red: 0.376, green: 0.647, blue: 0.980) }
 
     var body: some View {
         Group {
@@ -478,17 +719,37 @@ struct FavoritePlansView: View {
                 }
             } else {
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 12) {
-                        ForEach(favoritePlans) { plan in
+                    VStack(spacing: 0) {
+                        ForEach(Array(favoritePlans.enumerated()), id: \.element.id) { idx, plan in
                             NavigationLink(value: plan) {
-                                PlanCardView(plan: plan)
-                                    .frame(maxWidth: .infinity)
+                                planRow(plan, isLast: idx == favoritePlans.count - 1)
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                Button {
+                                    planRenameText = plan.name
+                                    renamingPlan = plan
+                                } label: {
+                                    Label("Rename Plan", systemImage: "pencil")
+                                }
+                                if !groups.isEmpty {
+                                    Button { movingPlan = plan } label: {
+                                        Label("Move to Group", systemImage: "folder")
+                                    }
+                                }
+                                Button(role: .destructive) {
+                                    deletingPlan = plan
+                                } label: {
+                                    Label("Delete Plan", systemImage: "trash")
+                                }
+                            }
                         }
                     }
-                    .padding()
+                    .background(rowBackground, in: RoundedRectangle(cornerRadius: 14))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 16)
                 }
+                .background(pageBackground.ignoresSafeArea())
             }
         }
         .navigationTitle("Favorite Plans")
@@ -496,6 +757,104 @@ struct FavoritePlansView: View {
         .navigationDestination(for: Plan.self) { plan in
             PlanDetailView(plan: plan)
         }
+        .sheet(item: $movingPlan) { plan in
+            MovePlanToGroupSheet(plan: plan, groups: groups)
+        }
+        .alert("Rename Plan", isPresented: Binding(
+            get: { renamingPlan != nil },
+            set: { if !$0 { renamingPlan = nil } }
+        )) {
+            TextField("Plan name", text: $planRenameText)
+            Button("Save") {
+                let t = planRenameText.trimmingCharacters(in: .whitespaces)
+                if !t.isEmpty { renamingPlan?.name = t }
+                renamingPlan = nil
+            }
+            Button("Cancel", role: .cancel) { renamingPlan = nil }
+        }
+        .alert("Delete Plan", isPresented: Binding(
+            get: { deletingPlan != nil },
+            set: { if !$0 { deletingPlan = nil } }
+        )) {
+            Button("Delete", role: .destructive) {
+                if let plan = deletingPlan { modelContext.delete(plan) }
+                deletingPlan = nil
+            }
+            Button("Cancel", role: .cancel) { deletingPlan = nil }
+        } message: {
+            Text("Are you sure you want to delete \"\(deletingPlan?.name ?? "")\"? This cannot be undone.")
+        }
+    }
+
+    private func planRow(_ plan: Plan, isLast: Bool) -> some View {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isLight ? Color(red: 0.878, green: 0.922, blue: 0.996) : Color(red: 0.118, green: 0.227, blue: 0.541))
+                    .frame(width: 36, height: 36)
+                Text("\(plan.surgeSessions.count)")
+                    .font(.headline.bold())
+                    .foregroundStyle(sectionLabelColor)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(plan.name)
+                    .font(.headline)
+                    .foregroundStyle(headingColor)
+                Text("\(plan.items.count) exercise\(plan.items.count == 1 ? "" : "s")")
+                    .font(.caption)
+                    .foregroundStyle(rowIconColor)
+            }
+
+            Spacer()
+
+            Image(systemName: "heart.fill")
+                .font(.caption)
+                .foregroundStyle(Color(red: 0.922, green: 0.302, blue: 0.400))
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(rowChevronColor)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .contentShape(Rectangle())
+        .overlay(alignment: .bottom) {
+            if !isLast {
+                Color(isLight ? Color(red: 0.749, green: 0.859, blue: 0.996) : Color(red: 0.118, green: 0.227, blue: 0.541))
+                    .frame(height: 0.5)
+                    .padding(.leading, 64)
+            }
+        }
+    }
+}
+
+// MARK: - Group Color Picker Sheet
+
+struct GroupColorPickerSheet: View {
+    @Bindable var group: PlanGroup
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 28) {
+                PlanGroupCardView(group: group)
+                    .frame(maxWidth: 200)
+                    .padding(.top, 8)
+
+                GradientPickerView(selectedIndex: $group.cardGradientIndex)
+                    .padding(.horizontal)
+
+                Spacer()
+            }
+            .navigationTitle("Change Color")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
 

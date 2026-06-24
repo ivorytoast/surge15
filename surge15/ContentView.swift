@@ -25,21 +25,6 @@ enum HomeViewMode: String, CaseIterable, Identifiable {
     }
 }
 
-enum RouteSort: String, CaseIterable, Identifiable {
-    case distanceFromYou = "Distance From You"
-    case mostFrequent = "Most Frequently Used"
-    case lapDistance = "Lap Distance"
-
-    var id: String { rawValue }
-
-    var icon: String {
-        switch self {
-        case .distanceFromYou: return "location.fill"
-        case .mostFrequent: return "flame.fill"
-        case .lapDistance: return "ruler"
-        }
-    }
-}
 
 /// A group of routes whose start points fall within the cluster threshold of each other.
 struct RouteCluster: Identifiable {
@@ -76,6 +61,7 @@ struct ContentView: View {
     @State private var lastValidTab: Int = 0
     @State private var sessionsPath = NavigationPath()
     @State private var showingSurgeDetail = false
+    @State private var showingSurgeIntent = false
 
     // Tab tags. The blue bolt sits dead-center.
     private let routesTab = 0
@@ -116,7 +102,7 @@ struct ContentView: View {
 
             PlansHomeView()
                 .tabItem {
-                    Label("Plan", systemImage: "list.clipboard")
+                    Label("Plans", systemImage: "list.clipboard")
                 }
                 .tag(planTab)
 
@@ -153,6 +139,20 @@ struct ContentView: View {
                 }
             }
         }
+        .sheet(isPresented: $showingSurgeIntent) {
+            SurgeIntentView(
+                onRunRoute: {
+                    showingSurgeIntent = false
+                    selectedTab = routesTab
+                    lastValidTab = routesTab
+                },
+                onExecutePlan: {
+                    showingSurgeIntent = false
+                    selectedTab = planTab
+                    lastValidTab = planTab
+                }
+            )
+        }
         .onChange(of: hasCurrentSurge) { _, isActive in
             if !isActive { showingSurgeDetail = false }
         }
@@ -170,14 +170,10 @@ struct ContentView: View {
 
     private func handleSurgeTap() {
         if hasCurrentSurge {
-            // Show the active surge as a sheet over whatever tab is current.
             showingSurgeDetail = true
         } else {
-            // No active surge — send the user to Routes to pick one.
-            selectedTab = routesTab
-            lastValidTab = routesTab
+            showingSurgeIntent = true
         }
-        // Always bounce the tab selection back so the middle tab never "stays selected".
         selectedTab = lastValidTab
     }
 
@@ -243,12 +239,12 @@ extension EnvironmentValues {
 
 struct RoutesHomeView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
     @Query(sort: \Route.createdAt, order: .reverse) private var routes: [Route]
 
     @State private var showingCreateRoute = false
 
     @State private var viewMode: HomeViewMode = .map
-    @State private var sort: RouteSort = .distanceFromYou
     @State private var tracker = LocationTracker()
     @State private var cameraPosition: MapCameraPosition = .region(Self.defaultRegion)
     @State private var didCenterOnUser = false
@@ -259,6 +255,7 @@ struct RoutesHomeView: View {
     @State private var pendingEdit: Route?
     @State private var pendingPeek: Route?
     @State private var editingRoute: Route?
+    @State private var deletingRoute: Route?
     @State private var path = NavigationPath()
 
     // "Go from map" flow — peek's Go button skips the detail view and jumps
@@ -332,6 +329,18 @@ struct RoutesHomeView: View {
             }
             .sheet(item: $editingRoute) { route in
                 EditRouteView(route: route)
+            }
+            .alert("Delete Route", isPresented: Binding(
+                get: { deletingRoute != nil },
+                set: { if !$0 { deletingRoute = nil } }
+            )) {
+                Button("Delete", role: .destructive) {
+                    if let route = deletingRoute { modelContext.delete(route) }
+                    deletingRoute = nil
+                }
+                Button("Cancel", role: .cancel) { deletingRoute = nil }
+            } message: {
+                Text("Are you sure you want to delete \"\(deletingRoute?.name ?? "")\"? This cannot be undone.")
             }
             .sheet(isPresented: $showingCreateRoute) {
                 CreateRouteView()
@@ -645,226 +654,219 @@ struct RoutesHomeView: View {
         clusterRoutes(routes, withinMeters: clusterThresholdMeters)
     }
 
+    // MARK: - List mode adaptive colors
+
+    private var isLight: Bool { colorScheme == .light }
+
+    // #f5f8fd light ↔ #070a18 deepest navy dark
+    private var pageBackground: Color {
+        isLight ? Color(red: 0.961, green: 0.973, blue: 0.992) : Color(red: 0.027, green: 0.039, blue: 0.094)
+    }
+    // white light ↔ #0e1430 deep navy dark
+    private var listContainerBg: Color {
+        isLight ? .white : Color(red: 0.055, green: 0.078, blue: 0.188)
+    }
+    // #dbeafe light ↔ #1e3a8a dark
+    private var iconCircleFill: Color {
+        isLight ? Color(red: 0.859, green: 0.914, blue: 0.996) : Color(red: 0.118, green: 0.227, blue: 0.541)
+    }
+    // #2563eb light ↔ #60a5fa dark
+    private var iconForeground: Color {
+        isLight ? Color(red: 0.145, green: 0.388, blue: 0.922) : Color(red: 0.376, green: 0.647, blue: 0.980)
+    }
+    // #0f172a ink light ↔ white dark
+    private var rowNameColor: Color {
+        isLight ? Color(red: 0.059, green: 0.090, blue: 0.165) : .white
+    }
+    // #9fb0d4 muted slate light ↔ #c2cde4 light slate dark
+    private var rowCaptionColor: Color {
+        isLight ? Color(red: 0.624, green: 0.690, blue: 0.831) : Color(red: 0.761, green: 0.804, blue: 0.894)
+    }
+    // #c2cde4 light ↔ #9fb0d4 dark
+    private var chevronColor: Color {
+        isLight ? Color(red: 0.761, green: 0.804, blue: 0.894) : Color(red: 0.624, green: 0.690, blue: 0.831)
+    }
+    // #2563eb light ↔ #60a5fa dark
+    private var sectionLabelColor: Color {
+        isLight ? Color(red: 0.145, green: 0.388, blue: 0.922) : Color(red: 0.376, green: 0.647, blue: 0.980)
+    }
+    // #bfdbfe light ↔ #1e3a8a dark
+    private var dividerColor: Color {
+        isLight ? Color(red: 0.749, green: 0.859, blue: 0.996) : Color(red: 0.118, green: 0.227, blue: 0.541)
+    }
+
     // MARK: - List mode
 
     private var listHome: some View {
-        let colors = badgeColors()
-        return VStack(spacing: 0) {
-            sortHeader
-            List {
-                ForEach(Array(sortedRoutes.enumerated()), id: \.element.id) { idx, route in
-                    Button {
-                        peekRoute = route
-                    } label: {
-                        routeRow(route, color: colors[idx])
-                    }
-                    .buttonStyle(.plain)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                        Button(role: .destructive) {
-                            modelContext.delete(route)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                let suggested = suggestedRoutes
+                let favorites = routes.filter { $0.isFavorite }
+
+                if !suggested.isEmpty {
+                    routeShelf(title: "Suggested Routes", routes: suggested)
+                }
+
+                if !favorites.isEmpty {
+                    routeShelf(title: "Favorites", routes: favorites)
+                }
+
+                if !routes.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        listSectionHeader("All Routes")
+                            .padding(.horizontal)
+                        VStack(spacing: 0) {
+                            ForEach(Array(allRoutesSorted.enumerated()), id: \.element.id) { idx, route in
+                                routeListRow(route: route, isLast: idx == routes.count - 1)
+                            }
                         }
+                        .background(listContainerBg, in: RoundedRectangle(cornerRadius: 14))
+                        .padding(.horizontal, 16)
                     }
-                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                        Button {
-                            editingRoute = route
-                        } label: {
-                            Label("Edit", systemImage: "pencil")
-                        }
-                        .tint(.blue)
+                    .padding(.bottom, 24)
+                }
+            }
+            .padding(.top, 16)
+        }
+        .background(pageBackground.ignoresSafeArea())
+    }
+
+    private var suggestedRoutes: [Route] {
+        guard let user = userCoordinate else {
+            return Array(routes.sorted { $0.sessions.count > $1.sessions.count }.prefix(2))
+        }
+        let byDistance = routes.sorted {
+            ($0.startCoordinate?.distance(to: user) ?? .infinity) <
+            ($1.startCoordinate?.distance(to: user) ?? .infinity)
+        }
+        var suggestions: [Route] = []
+        for route in byDistance {
+            if suggestions.count == 2 { break }
+            var merged = false
+            for i in suggestions.indices {
+                guard let c1 = route.startCoordinate,
+                      let c2 = suggestions[i].startCoordinate else { continue }
+                if c1.distance(to: c2) <= 50 {
+                    if route.sessions.count > suggestions[i].sessions.count {
+                        suggestions[i] = route
+                    }
+                    merged = true
+                    break
+                }
+            }
+            if !merged { suggestions.append(route) }
+        }
+        return suggestions
+    }
+
+    private var allRoutesSorted: [Route] {
+        guard let user = userCoordinate else { return routes }
+        return routes.sorted {
+            ($0.startCoordinate?.distance(to: user) ?? .infinity) <
+            ($1.startCoordinate?.distance(to: user) ?? .infinity)
+        }
+    }
+
+    private func routeShelf(title: String, routes: [Route]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            listSectionHeader(title)
+                .padding(.horizontal)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(routes) { route in
+                        routeCardButton(route)
+                            .frame(width: 130)
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 2)
             }
         }
     }
 
-    private var sortHeader: some View {
-        HStack {
-            Menu {
-                Picker("Sort", selection: $sort) {
-                    ForEach(RouteSort.allCases) { option in
-                        Label(option.rawValue, systemImage: option.icon).tag(option)
-                    }
+    private func routeCardButton(_ route: Route) -> some View {
+        Button { peekRoute = route } label: { RouteCardView(route: route) }
+            .buttonStyle(.plain)
+            .contextMenu {
+                Button {
+                    route.isFavorite.toggle()
+                } label: {
+                    Label(route.isFavorite ? "Remove from Favorites" : "Add to Favorites",
+                          systemImage: route.isFavorite ? "heart.slash" : "heart")
                 }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "arrow.up.arrow.down")
-                    Text("Sorted by:")
-                        .foregroundStyle(.secondary)
-                    Text(sort.rawValue)
-                        .fontWeight(.semibold)
-                    Image(systemName: "chevron.down")
-                        .font(.caption2)
+                Button { editingRoute = route } label: {
+                    Label("Edit", systemImage: "pencil")
                 }
-                .font(.callout)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .background(Color(.secondarySystemBackground), in: Capsule())
-                .foregroundStyle(.primary)
+                Button(role: .destructive) { deletingRoute = route } label: {
+                    Label("Delete", systemImage: "trash")
+                }
             }
-            if sort == .distanceFromYou && userCoordinate == nil {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                    .help("Current location unavailable — showing default order.")
-            }
-            Spacer()
-        }
-        .padding(.horizontal)
-        .padding(.top, 12)
-        .padding(.bottom, 6)
     }
 
-    private var sortedRoutes: [Route] {
-        switch sort {
-        case .distanceFromYou:
-            guard let user = userCoordinate else { return routes }
-            return routes.sorted { a, b in
-                let da = a.startCoordinate?.distance(to: user) ?? .infinity
-                let db = b.startCoordinate?.distance(to: user) ?? .infinity
-                return da < db
-            }
-        case .mostFrequent:
-            return routes.sorted { lhs, rhs in
-                if lhs.sessions.count == rhs.sessions.count {
-                    return lhs.createdAt > rhs.createdAt
+    private func routeListRow(route: Route, isLast: Bool) -> some View {
+        Button { peekRoute = route } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(iconCircleFill)
+                        .frame(width: 36, height: 36)
+                    Text("\(route.sessions.count)")
+                        .font(.headline.bold())
+                        .foregroundStyle(iconForeground)
                 }
-                return lhs.sessions.count > rhs.sessions.count
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(route.name)
+                        .font(.headline)
+                        .foregroundStyle(rowNameColor)
+                    HStack(spacing: 4) {
+                        Text(Formatters.distance(route.distanceMeters))
+                        Text("·")
+                        Text("\(route.sessions.count) run\(route.sessions.count == 1 ? "" : "s")")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(rowCaptionColor)
+                }
+                Spacer()
+                if route.isFavorite {
+                    Image(systemName: "heart.fill")
+                        .font(.caption)
+                        .foregroundStyle(Color(red: 0.922, green: 0.302, blue: 0.400))
+                }
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(chevronColor)
             }
-        case .lapDistance:
-            return routes.sorted { $0.distanceMeters < $1.distanceMeters }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button { route.isFavorite.toggle() } label: {
+                Label(route.isFavorite ? "Remove from Favorites" : "Add to Favorites",
+                      systemImage: route.isFavorite ? "heart.slash" : "heart")
+            }
+            Button { editingRoute = route } label: { Label("Edit", systemImage: "pencil") }
+            Button(role: .destructive) { deletingRoute = route } label: { Label("Delete", systemImage: "trash") }
+        }
+        .overlay(alignment: .bottom) {
+            if !isLast {
+                dividerColor
+                    .frame(height: 0.5)
+                    .padding(.leading, 64)
+            }
+        }
+    }
+
+    private func listSectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(sectionLabelColor)
+            .textCase(.uppercase)
     }
 
     private var userCoordinate: CLLocationCoordinate2D? {
         tracker.recordedLocations.last?.coordinate
-    }
-
-    private func routeRow(_ route: Route, color: Color) -> some View {
-        HStack(spacing: 12) {
-            sortBadge(for: route, color: color)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(truncatedRouteName(route.name))
-                    .font(.headline)
-                    .lineLimit(1)
-                HStack(spacing: 8) {
-                    Label(Formatters.distance(route.distanceMeters), systemImage: "ruler")
-                    Label("\(route.sessions.count) sessions", systemImage: "figure.run")
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private func sortBadge(for route: Route, color: Color) -> some View {
-        let (label, _) = badgeValue(for: route)
-        return Text(label)
-            .font(.system(.callout, design: .rounded, weight: .heavy))
-            .monospacedDigit()
-            .foregroundStyle(.white)
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
-            .frame(width: 64, height: 48)
-            .background(color, in: RoundedRectangle(cornerRadius: 10))
-    }
-
-    private func badgeValue(for route: Route) -> (label: String, isUnavailable: Bool) {
-        switch sort {
-        case .distanceFromYou:
-            if let user = userCoordinate, let start = route.startCoordinate {
-                return (Formatters.distance(start.distance(to: user)), false)
-            }
-            return ("—", true)
-        case .mostFrequent:
-            return ("\(route.sessions.count)x", false)
-        case .lapDistance:
-            return (Formatters.distance(route.distanceMeters), false)
-        }
-    }
-
-    /// Numeric value used to detect ties between adjacent rows when assigning colors.
-    /// Routes whose value matches the previous row keep that row's color.
-    private func sortValue(for route: Route) -> Double {
-        switch sort {
-        case .distanceFromYou:
-            guard let user = userCoordinate, let start = route.startCoordinate else { return .infinity }
-            return start.distance(to: user)
-        case .mostFrequent:
-            return Double(route.sessions.count)
-        case .lapDistance:
-            return route.distanceMeters
-        }
-    }
-
-    /// One color per row, in display order. Adjacent rows with equal `sortValue` share
-    /// the color of the earlier row, so e.g. three routes all tied at "1 session"
-    /// render as three green badges, not green/amber/red.
-    private func badgeColors() -> [Color] {
-        let routes = sortedRoutes
-        guard !routes.isEmpty else { return [] }
-        var result: [Color] = []
-        var lastValue: Double? = nil
-        var lastColor: Color? = nil
-        for (i, route) in routes.enumerated() {
-            let (_, isUnavailable) = badgeValue(for: route)
-            if isUnavailable {
-                result.append(Color(.systemGray3))
-                lastValue = nil
-                lastColor = nil
-                continue
-            }
-            let value = sortValue(for: route)
-            if let lv = lastValue, value == lv, let lc = lastColor {
-                result.append(lc)
-            } else {
-                let color = Self.gradientColor(rank: i, total: routes.count)
-                result.append(color)
-                lastValue = value
-                lastColor = color
-            }
-        }
-        return result
-    }
-
-    /// Maps `rank` in [0, total-1] to a smooth green → amber → red color stop.
-    /// Single-item lists are fully green.
-    static func gradientColor(rank: Int, total: Int) -> Color {
-        guard total > 1 else { return Color(red: 0.20, green: 0.70, blue: 0.30) }
-        let t = Double(rank) / Double(total - 1)
-        return interpolate(at: t)
-    }
-
-    private static func interpolate(at t: Double) -> Color {
-        // Three-stop gradient: green @ 0, amber @ 0.5, red @ 1.
-        let stops: [(Double, Double, Double, Double)] = [
-            (0.0, 0.20, 0.70, 0.30),
-            (0.5, 0.95, 0.70, 0.10),
-            (1.0, 0.85, 0.20, 0.20),
-        ]
-        let clamped = max(0, min(1, t))
-        var lower = stops[0]
-        var upper = stops[1]
-        for i in 1..<stops.count where clamped <= stops[i].0 {
-            lower = stops[i - 1]
-            upper = stops[i]
-            break
-        }
-        let span = upper.0 - lower.0
-        let local = span > 0 ? (clamped - lower.0) / span : 0
-        return Color(
-            red: lower.1 + (upper.1 - lower.1) * local,
-            green: lower.2 + (upper.2 - lower.2) * local,
-            blue: lower.3 + (upper.3 - lower.3) * local
-        )
-    }
-
-    private func deleteSortedRoutes(_ offsets: IndexSet) {
-        let display = sortedRoutes
-        let toDelete = offsets.map { display[$0] }
-        for route in toDelete {
-            modelContext.delete(route)
-        }
     }
 }
 
@@ -1023,14 +1025,37 @@ struct CalendarHomeView: View {
         Calendar.current.isDateInToday(selectedDate)
     }
 
-    /// Today with no sessions → motivating nudge. Any other empty day → roast.
+    private var isFuture: Bool {
+        Calendar.current.startOfDay(for: selectedDate) > Calendar.current.startOfDay(for: Date())
+    }
+
+    /// Today with no sessions → motivating nudge. Future day → playful forward-look. Past empty day → roast.
     private var quoteForSelectedDate: String {
         let day = Int(Calendar.current.startOfDay(for: selectedDate).timeIntervalSince1970) / 86_400
         if isToday {
             return Self.todayNudgeQuotes[abs(day) % Self.todayNudgeQuotes.count]
         }
+        if isFuture {
+            return Self.futureDayQuotes[abs(day) % Self.futureDayQuotes.count]
+        }
         return Self.restDayQuotes[abs(day) % Self.restDayQuotes.count]
     }
+
+    private static let futureDayQuotes: [String] = [
+        "Woah, you're already planning your workout for this day.",
+        "Love the commitment. This day isn't even here yet.",
+        "Scouting out future suffering. Respect.",
+        "The future you is already lacing up. Probably.",
+        "Bold of you to assume you'll want to on this day.",
+        "Pencil it in. Then actually show up.",
+        "A blank slate. Infinite potential. No excuses yet.",
+        "Future you will either thank you or blame you for this.",
+        "This day is wide open. Nice.",
+        "Pre-regretting skipping this one. Smart.",
+        "You're thinking about the future. The future is thinking back.",
+        "All that free space just waiting for a surge.",
+        "Looking ahead. We love to see it.",
+    ]
 
     private static let todayNudgeQuotes: [String] = [
         "How about a quick run? Or 2? Or 3? Or 4?",
@@ -1338,6 +1363,261 @@ struct CalendarMonthView: View {
         if let next = calendar.date(byAdding: .month, value: delta, to: displayedMonth) {
             displayedMonth = next
         }
+    }
+}
+
+// MARK: - Surge intent chooser
+
+struct SurgeIntentView: View {
+    let onRunRoute: () -> Void
+    let onExecutePlan: () -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+    @Query private var routes: [Route]
+    @Query private var plans: [Plan]
+
+    @State private var quote: String = ""
+
+    private static let quotes: [String] = [
+        // Original 15
+        "I see you. Putting in that work.",
+        "The couch called. You didn't answer.",
+        "Legs don't know it's leg day. Surprise them.",
+        "You showed up. That's already 50% of it.",
+        "Your future self is watching. Don't disappoint them.",
+        "No one ever regretted a workout. Maybe one person...but who's counting?",
+        "Sweat is just your body applauding itself.",
+        "You vs. you. You're winning.",
+        "The only bad workout is the one that didn't happen.",
+        "The route isn't going to run itself.",
+        "Your body can. Your brain is just being dramatic.",
+        "Let's get this bread. And then burn it off.",
+        "Today's discomfort is tomorrow's warm-up.",
+        "You're here. The hard part is already done.",
+        "Champions train on the days they don't want to.",
+        // 50 new ones
+        "Pain is temporary. Screenshots of your stats are forever.",
+        "Your muscles don't know it's early. Neither does your alarm. Go.",
+        "Every kilometre you don't run, someone else is running it. Rude of them.",
+        "Plot twist: you feel amazing after.",
+        "You drove here. You might as well.",
+        "Technically, blinking is cardio. But let's aim higher.",
+        "Your heart wants to. Your legs will follow.",
+        "You didn't come this far to only come this far.",
+        "Somewhere, someone is using your motivation as their excuse not to go. Don't let them win.",
+        "This is the part of the movie where you get up.",
+        "Outrun your thoughts. There are a lot of them today.",
+        "You've survived worse. You can survive a lap or two.",
+        "Not all heroes wear capes. Some wear compression socks.",
+        "The best time to work out was yesterday. The second best time is right now.",
+        "One decision. One direction. One very sore tomorrow.",
+        "Your body keeps the score. Make sure the score is good.",
+        "Lace up. The route isn't going anywhere, but you should.",
+        "You've been thinking about this all day. Now stop thinking.",
+        "Discipline is just motivation with a better attendance record.",
+        "Run like someone's watching. Because your future self is.",
+        "The gym doesn't care about your feelings. But we do. Now go.",
+        "You are one workout away from a good mood.",
+        "Your legs have been waiting all day for this. They're excited. Trust them.",
+        "The only person you need to be better than is last week's you.",
+        "Surge. Then brunch. In that order.",
+        "Go fast. Go slow. Just go.",
+        "Your sneakers have been by the door all day, hopeful.",
+        "The route has been patiently waiting. It's time.",
+        "New body unlocked. It's on the other side of this workout.",
+        "You are legally required to feel good after this. Look it up.",
+        "Sometimes the hardest part is opening the app. Done. You win.",
+        "Elite mindset. Amateur excuse count: zero.",
+        "Later you will say: I'm glad I did that. Trust later you.",
+        "You didn't skip. Iconic.",
+    ]
+
+    private var isLight: Bool { colorScheme == .light }
+    private var pageBackground: Color {
+        isLight ? Color(red: 0.961, green: 0.973, blue: 0.992) : Color(red: 0.027, green: 0.039, blue: 0.094)
+    }
+    var body: some View {
+        VStack(spacing: 0) {
+            Text("\"\(quote)\"")
+                .font(.subheadline.italic())
+                .foregroundStyle(isLight ? Color(red: 0.059, green: 0.090, blue: 0.165) : .white)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 8)
+                .padding(.bottom, 14)
+
+            intentTile(
+                title: "Run a Route",
+                subtitle: "GPS-tracked laps on your personal loop",
+                emptyNudge: "No routes yet — go create one",
+                icon: "figure.run",
+                count: routes.count,
+                countLabel: "route",
+                // #1e3a8a → #2563eb  Navy → Primary Blue
+                gradient: LinearGradient(
+                    colors: [Color(red: 0.118, green: 0.227, blue: 0.541), Color(red: 0.145, green: 0.388, blue: 0.922)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                ),
+                action: onRunRoute
+            )
+            .padding(.bottom, 10)
+            intentTile(
+                title: "Execute a Plan",
+                subtitle: "Work through your structured workout",
+                emptyNudge: "No plans yet — go create one",
+                icon: "bolt.fill",
+                count: plans.count,
+                countLabel: "plan",
+                // #15235a → #60a5fa  Mid Navy → Light Blue
+                gradient: LinearGradient(
+                    colors: [Color(red: 0.082, green: 0.137, blue: 0.353), Color(red: 0.376, green: 0.647, blue: 0.980)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                ),
+                action: onExecutePlan
+            )
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
+        .presentationDetents([.height(320)])
+        .presentationBackground(pageBackground)
+        .onAppear {
+            quote = SurgeIntentView.quotes.randomElement() ?? ""
+        }
+    }
+
+    private func intentTile(
+        title: String,
+        subtitle: String,
+        emptyNudge: String,
+        icon: String,
+        count: Int,
+        countLabel: String,
+        gradient: LinearGradient,
+        action: @escaping () -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button(action: action) {
+                ZStack(alignment: .bottomLeading) {
+                    gradient
+                    LinearGradient(
+                        colors: [.clear, .black.opacity(0.4)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(alignment: .top) {
+                            Image(systemName: icon)
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.85))
+                            Spacer()
+                            if count > 0 {
+                                Text("\(count) \(countLabel)\(count == 1 ? "" : "s")")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(.white.opacity(0.2), in: Capsule())
+                            } else {
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(.white.opacity(0.75))
+                            }
+                        }
+                        Spacer()
+                        Text(title)
+                            .font(.headline.bold())
+                            .foregroundStyle(.white)
+                            .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+                        Text(subtitle)
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.75))
+                    }
+                    .padding(16)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 110)
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+            }
+            .buttonStyle(.plain)
+
+            if count == 0 {
+                Button(action: action) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.circle.fill")
+                        Text(emptyNudge)
+                        Image(systemName: "arrow.right")
+                    }
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.orange)
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, 4)
+            }
+        }
+    }
+}
+
+// Brand-palette navy → blue gradients for route cards
+private let routeCardGradients: [LinearGradient] = [
+    // #1e3a8a → #2563eb  Navy → Primary Blue
+    LinearGradient(colors: [Color(red: 0.118, green: 0.227, blue: 0.541), Color(red: 0.145, green: 0.388, blue: 0.922)], startPoint: .topLeading, endPoint: .bottomTrailing),
+    // #15235a → #60a5fa  Mid Navy → Light Blue
+    LinearGradient(colors: [Color(red: 0.082, green: 0.137, blue: 0.353), Color(red: 0.376, green: 0.647, blue: 0.980)], startPoint: .topLeading, endPoint: .bottomTrailing),
+    // #0e1430 → #1e3a8a  Deep Navy → Navy
+    LinearGradient(colors: [Color(red: 0.055, green: 0.078, blue: 0.188), Color(red: 0.118, green: 0.227, blue: 0.541)], startPoint: .topLeading, endPoint: .bottomTrailing),
+    // #1e3a8a → #5a8df0  Navy → Softer Blue
+    LinearGradient(colors: [Color(red: 0.118, green: 0.227, blue: 0.541), Color(red: 0.353, green: 0.553, blue: 0.941)], startPoint: .topLeading, endPoint: .bottomTrailing),
+    // #070a18 → #2563eb  Deepest Navy → Primary Blue
+    LinearGradient(colors: [Color(red: 0.027, green: 0.039, blue: 0.094), Color(red: 0.145, green: 0.388, blue: 0.922)], startPoint: .topLeading, endPoint: .bottomTrailing),
+    // #15235a → #93c5fd  Mid Navy → Pale Blue
+    LinearGradient(colors: [Color(red: 0.082, green: 0.137, blue: 0.353), Color(red: 0.576, green: 0.773, blue: 0.992)], startPoint: .topLeading, endPoint: .bottomTrailing),
+]
+
+struct RouteCardView: View {
+    let route: Route
+
+    private var gradient: LinearGradient {
+        routeCardGradients[abs(route.name.hashValue) % routeCardGradients.count]
+    }
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            gradient
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.35)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: "figure.run")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.85))
+                    Spacer()
+                    if route.isFavorite {
+                        Image(systemName: "heart.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.9))
+                    }
+                }
+                Spacer()
+                Text(route.name)
+                    .font(.headline.bold())
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+                HStack(spacing: 6) {
+                    Text(Formatters.distance(route.distanceMeters))
+                    Text("·")
+                    Text("\(route.sessions.count) run\(route.sessions.count == 1 ? "" : "s")")
+                }
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.75))
+            }
+            .padding(12)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 118)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 }
 
