@@ -14,13 +14,59 @@ import MapKit
 
 private struct PendingExercise: Identifiable {
     let id = UUID()
-    let type: WorkoutItemType
+    let type: WorkoutItemType?   // nil for custom exercises
+    let customName: String?
+    let customIcon: String?
     let measure: WorkoutMeasure
+    let availableMeasures: [WorkoutMeasure]
     let targetValue: Double
+
+    init(type: WorkoutItemType, measure: WorkoutMeasure, targetValue: Double) {
+        self.type = type
+        self.customName = nil
+        self.customIcon = nil
+        self.measure = measure
+        self.availableMeasures = [measure]
+        self.targetValue = targetValue
+    }
+
+    init(customName: String, customIcon: String, measures: [WorkoutMeasure], targetValue: Double = 10) {
+        self.type = nil
+        self.customName = customName
+        self.customIcon = customIcon
+        self.measure = measures.first ?? .reps
+        self.availableMeasures = measures
+        self.targetValue = targetValue
+    }
+
+    var displayName: String { type?.displayName ?? customName ?? "Exercise" }
+    var systemImage: String { type?.systemImage ?? customIcon ?? "figure.mixed.cardio" }
 
     var displayTarget: String {
         type == .run ? "Route run" : measure.formatted(targetValue)
     }
+}
+
+// MARK: - Custom exercise recording request
+
+private struct CustomRecordingRequest: Identifiable {
+    let id = UUID()
+    let name: String
+    let icon: String
+    let measures: [WorkoutMeasure]
+    let targetValue: Double
+}
+
+// MARK: - Direct GPS run (plan item bypass — skips RouteRunSetupView)
+
+private struct DirectRunDestination: Identifiable, Hashable {
+    let id = UUID()
+    let route: Route
+    let mode: SessionMode
+    let target: Double
+
+    static func == (lhs: DirectRunDestination, rhs: DirectRunDestination) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
 // MARK: - Reorder entry (unified plan item + pending exercise)
@@ -36,10 +82,10 @@ fileprivate enum ReorderEntry: Identifiable {
         }
     }
     var displayName: String {
-        switch self { case .planItem(let i): return i.workoutType.displayName; case .pending(let p): return p.type.displayName }
+        switch self { case .planItem(let i): return i.workoutType.displayName; case .pending(let p): return p.displayName }
     }
     var systemImage: String {
-        switch self { case .planItem(let i): return i.workoutType.systemImage; case .pending(let p): return p.type.systemImage }
+        switch self { case .planItem(let i): return i.workoutType.systemImage; case .pending(let p): return p.systemImage }
     }
     var subtitle: String {
         switch self { case .planItem(let i): return i.displayTarget; case .pending(let p): return p.displayTarget }
@@ -80,6 +126,13 @@ struct SurgeSessionDetailView: View {
     @State private var recordingMeasure: WorkoutMeasure? = nil
     @State private var recordingTarget: Double? = nil
     @State private var routeForSetup: Route?
+    @State private var routeRunMeasure: WorkoutMeasure? = nil
+    @State private var routeRunTarget: Double? = nil
+    @State private var recordingCustomRequest: CustomRecordingRequest? = nil
+    @State private var directRunDestination: DirectRunDestination? = nil
+    @State private var showingAutoModeConfirm = false
+    @State private var showWorkoutComplete = false
+    @AppStorage(hiddenBuiltinExercisesKey) private var hiddenBuiltinsRaw: String = ""
     @State private var viewingSession: Session?
     /// Local-only skip stack — order tracked so Back can undo the last skip.
     @State private var skippedItems: [PersistentIdentifier] = []
@@ -92,6 +145,12 @@ struct SurgeSessionDetailView: View {
     /// Current timeline order for plan items. Empty = use plan's natural sort order.
     @State private var timelineOrder: [PersistentIdentifier] = []
     @State private var showingReorder = false
+    @State private var autoModeEnabled: Bool = false
+    @AppStorage(autoRestDurationKey) private var autoRestDuration: Int = autoRestDurationDefault
+    @State private var autoRestRemaining: TimeInterval? = nil
+    @State private var autoRestTask: Task<Void, Never>? = nil
+    /// Session count captured when an exercise starts — used to detect completion on sheet dismiss.
+    @State private var sessionCountSnapshot: Int = 0
 
     private var isLive: Bool { surgeSession.isCurrent }
 
@@ -109,26 +168,21 @@ struct SurgeSessionDetailView: View {
             }
             .padding(.bottom, isLive ? 100 : 24)
         }
+        .overlay {
+            if showWorkoutComplete {
+                WorkoutCompleteOverlay {
+                    withAnimation { showWorkoutComplete = false }
+                }
+                .transition(.opacity)
+            }
+        }
         .background(Color(.systemGroupedBackground))
         .navigationTitle(surgeSession.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarBackground(navBarTintColor, for: .navigationBar)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                Group {
-                    if isLive {
-                        Text(Formatters.duration(elapsedActiveTime))
-                            .font(.headline.monospacedDigit())
-                            .foregroundStyle(titleColor)
-                            .animation(.easeInOut(duration: 0.25), value: flashingGreen)
-                            .animation(.easeInOut(duration: 0.2), value: isPaused)
-                    } else {
-                        Text(surgeSession.name)
-                            .font(.headline)
-                    }
-                }
-            }
+            ToolbarItem(placement: .principal) { principalTitle }
             if isLive {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showingAddExercise = true } label: {
@@ -159,14 +213,21 @@ struct SurgeSessionDetailView: View {
         }) {
             AddExerciseSheet(
                 routeName: surgeSession.route?.name,
+                hiddenBuiltinRawValues: hiddenBuiltinsRaw,
                 onRouteRun: {
-                    // Route runs configure in RouteRunSetupView — queue with defaults
                     pendingAdHocItems.append(PendingExercise(type: .run, measure: .laps, targetValue: 1))
                     showingAddExercise = false
                 },
-                onSelect: { type in
-                    // All other exercises show a config sheet first
+                onSelectBuiltin: { type in
                     pendingConfigType = type
+                    showingAddExercise = false
+                },
+                onSelectCustom: { exercise in
+                    pendingAdHocItems.append(PendingExercise(
+                        customName: exercise.name,
+                        customIcon: exercise.iconName,
+                        measures: exercise.measures
+                    ))
                     showingAddExercise = false
                 }
             )
@@ -177,13 +238,31 @@ struct SurgeSessionDetailView: View {
             }
         }
         .sheet(item: $recordingExercise, onDismiss: {
+            let snapshot = sessionCountSnapshot
             recordingMeasure = nil
             recordingTarget = nil
+            if autoModeEnabled && surgeSession.sessions.count > snapshot {
+                handleAutoModeExerciseComplete()
+            }
         }) { type in
             ExerciseRecordingView(
                 workoutType: type,
                 measure: recordingMeasure,
                 targetValue: recordingTarget,
+                surgeSession: surgeSession
+            )
+        }
+        .sheet(item: $recordingCustomRequest, onDismiss: {
+            let snapshot = sessionCountSnapshot
+            if autoModeEnabled && surgeSession.sessions.count > snapshot {
+                handleAutoModeExerciseComplete()
+            }
+        }) { req in
+            ExerciseRecordingView(
+                customName: req.name,
+                customIcon: req.icon,
+                measures: req.measures,
+                targetValue: req.targetValue,
                 surgeSession: surgeSession
             )
         }
@@ -199,7 +278,10 @@ struct SurgeSessionDetailView: View {
             )
         }
         .navigationDestination(item: $routeForSetup) { route in
-            RouteRunSetupView(route: route)
+            RouteRunSetupView(route: route, presetMeasure: routeRunMeasure, presetTarget: routeRunTarget)
+        }
+        .navigationDestination(item: $directRunDestination) { dest in
+            SessionRecordingView(route: dest.route, initialMode: dest.mode, initialTarget: dest.target)
         }
         .alert("End this workout?", isPresented: $showingEndConfirm) {
             Button("Cancel", role: .cancel) { }
@@ -210,6 +292,31 @@ struct SurgeSessionDetailView: View {
         } message: {
             Text("You can still view this workout in the calendar.")
         }
+        .alert("Enable Auto Mode?", isPresented: $showingAutoModeConfirm) {
+            Button("Let's Go!") {
+                autoModeEnabled = true
+                if currentItemIndex != nil || firstActivePending != nil {
+                    autoStartNextItem()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Auto Mode will immediately start your first exercise and automatically begin each following one after a \(autoRestDuration)s rest. Tap the timer to skip rest early.")
+        }
+        .onChange(of: autoModeEnabled) { _, enabled in
+            if !enabled { cancelAutoRest() }
+        }
+        .onChange(of: routeForSetup == nil) { wasNil, isNil in
+            if !wasNil && isNil && autoModeEnabled && surgeSession.sessions.count > sessionCountSnapshot {
+                handleAutoModeExerciseComplete()
+            }
+        }
+        .onChange(of: directRunDestination == nil) { wasNil, isNil in
+            if !wasNil && isNil && autoModeEnabled && surgeSession.sessions.count > sessionCountSnapshot {
+                handleAutoModeExerciseComplete()
+            }
+        }
+        .onDisappear { autoRestTask?.cancel() }
     }
 
     // MARK: - Elapsed time & title color
@@ -229,6 +336,19 @@ struct SurgeSessionDetailView: View {
         if flashingGreen { return Color.green.opacity(0.15) }
         if isPaused { return Color.orange.opacity(0.12) }
         return Color.clear
+    }
+
+    @ViewBuilder
+    private var principalTitle: some View {
+        if isLive {
+            Text(Formatters.duration(elapsedActiveTime))
+                .font(.headline.monospacedDigit())
+                .foregroundStyle(titleColor)
+                .animation(.easeInOut(duration: 0.25), value: flashingGreen)
+                .animation(.easeInOut(duration: 0.2), value: isPaused)
+        } else {
+            Text(surgeSession.name).font(.headline)
+        }
     }
 
     // MARK: - Timeline ordering
@@ -426,7 +546,7 @@ struct SurgeSessionDetailView: View {
             .frame(width: 32)
 
             VStack(alignment: .leading, spacing: 5) {
-                Text((session.workoutType ?? .run).displayName)
+                Text(session.exerciseDisplayName)
                     .font(.headline)
                     .foregroundStyle(.secondary)
                 Text(resultText(session))
@@ -469,7 +589,7 @@ struct SurgeSessionDetailView: View {
             .frame(width: 32)
 
             VStack(alignment: .leading, spacing: 5) {
-                Text(exercise.type.displayName)
+                Text(exercise.displayName)
                     .font(isCurrent ? .headline.bold() : .headline)
                     .foregroundStyle(isSkipped ? .secondary : .primary)
                     .italic(isSkipped)
@@ -489,13 +609,24 @@ struct SurgeSessionDetailView: View {
     }
 
     private func startPendingItem(_ exercise: PendingExercise) {
+        cancelAutoRest()
+        sessionCountSnapshot = surgeSession.sessions.count
         pendingAdHocItems.removeAll { $0.id == exercise.id }
         if exercise.type == .run, let route = surgeSession.route {
+            routeRunMeasure = nil  // ad-hoc runs always show the config
+            routeRunTarget = nil
             routeForSetup = route
-        } else {
+        } else if let type = exercise.type {
             recordingMeasure = exercise.measure
             recordingTarget = exercise.targetValue
-            recordingExercise = exercise.type
+            recordingExercise = type
+        } else {
+            recordingCustomRequest = CustomRecordingRequest(
+                name: exercise.customName ?? "",
+                icon: exercise.customIcon ?? "figure.mixed.cardio",
+                measures: exercise.availableMeasures,
+                targetValue: exercise.targetValue
+            )
         }
     }
 
@@ -549,58 +680,131 @@ struct SurgeSessionDetailView: View {
     // MARK: - Bottom action bar
 
     private var actionBar: some View {
-        HStack(spacing: 0) {
-            // Back — undo last skip
-            actionButton(icon: "arrow.uturn.backward.circle", label: "Back", color: .secondary) {
-                goBack()
-            }
-            .disabled(skippedItems.isEmpty && skippedPendingIDs.isEmpty)
-
-            // Skip — advance past current item
-            actionButton(icon: "forward.fill", label: "Skip", color: .secondary) {
-                skipCurrentItem()
-            }
-            .disabled(currentItemIndex == nil && firstActivePending == nil)
-
-            // Start — launch the current exercise (center, largest)
-            Button {
-                if let idx = currentItemIndex {
-                    startItem(orderedPlanItems[idx])
-                } else if let first = firstActivePending {
-                    startPendingItem(first)
+        VStack(spacing: 0) {
+            // Mode toggle
+            HStack(spacing: 2) {
+                Button {
+                    if autoModeEnabled {
+                        autoModeEnabled = false
+                        cancelAutoRest()
+                    }
+                } label: {
+                    Text("Manual")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(!autoModeEnabled ? Color(.systemBackground) : Color.clear,
+                                    in: RoundedRectangle(cornerRadius: 8))
+                        .foregroundStyle(!autoModeEnabled ? .primary : Color(.tertiaryLabel))
                 }
-            } label: {
-                VStack(spacing: 3) {
-                    Image(systemName: "play.circle.fill")
-                        .font(.system(size: 50))
-                        .foregroundStyle(.green)
-                    Text("Start")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.green)
+                .buttonStyle(.plain)
+
+                Button {
+                    if !autoModeEnabled { showingAutoModeConfirm = true }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "bolt.fill")
+                            .font(.caption.weight(.bold))
+                            .opacity(autoModeEnabled ? 1 : 0.4)
+                        Text("Auto")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(autoModeEnabled ? Color.orange : Color.clear,
+                                in: RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(autoModeEnabled ? .white : Color(.tertiaryLabel))
+                    .animation(.easeInOut(duration: 0.2), value: autoModeEnabled)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(3)
+            .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: 10))
+            .padding(.horizontal, 16)
+            .padding(.top, 10)
+            .padding(.bottom, 8)
+
+            HStack(spacing: 0) {
+                // Back — undo last skip
+                actionButton(icon: "arrow.uturn.backward.circle", label: "Back", color: .secondary) {
+                    goBack()
+                }
+                .disabled(skippedItems.isEmpty && skippedPendingIDs.isEmpty)
+
+                // Skip — advance past current item (or the next item during auto rest)
+                actionButton(icon: "forward.fill", label: "Skip", color: .secondary) {
+                    skipCurrentItem()
+                }
+                .disabled(currentItemIndex == nil && firstActivePending == nil)
+
+                // Center — Start button or auto rest countdown ring
+                if autoModeEnabled, let remaining = autoRestRemaining {
+                    Button { skipAutoRest() } label: {
+                        VStack(spacing: 3) {
+                            ZStack {
+                                Circle()
+                                    .stroke(Color.orange.opacity(0.2), lineWidth: 4)
+                                    .frame(width: 50, height: 50)
+                                Circle()
+                                    .trim(from: 0, to: max(0, CGFloat(remaining) / CGFloat(max(1, autoRestDuration))))
+                                    .stroke(Color.orange, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                                    .frame(width: 50, height: 50)
+                                    .rotationEffect(.degrees(-90))
+                                    .animation(.linear(duration: 1), value: remaining)
+                                Text("\(max(0, Int(ceil(remaining))))")
+                                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.orange)
+                                    .monospacedDigit()
+                                    .contentTransition(.numericText())
+                            }
+                            Text("Start Now")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity)
+                } else {
+                    Button {
+                        if let idx = currentItemIndex {
+                            startItem(orderedPlanItems[idx])
+                        } else if let first = firstActivePending {
+                            startPendingItem(first)
+                        }
+                    } label: {
+                        VStack(spacing: 3) {
+                            Image(systemName: "play.circle.fill")
+                                .font(.system(size: 50))
+                                .foregroundStyle(.green)
+                            Text("Start")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.green)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity)
+                    .disabled(currentItemIndex == nil && firstActivePending == nil)
+                }
+
+                // Pause / Go toggle
+                actionButton(
+                    icon: isPaused ? "play.circle.fill" : "pause.circle.fill",
+                    label: isPaused ? "Go" : "Pause",
+                    color: isPaused ? .green : .orange
+                ) {
+                    isPaused ? resumeWorkout() : pauseWorkout()
+                }
+                .animation(.easeInOut(duration: 0.15), value: isPaused)
+
+                // Stop — end the workout
+                actionButton(icon: "stop.circle.fill", label: "Stop", color: .red) {
+                    showingEndConfirm = true
                 }
             }
-            .buttonStyle(.plain)
-            .frame(maxWidth: .infinity)
-            .disabled(currentItemIndex == nil && firstActivePending == nil)
-
-            // Pause / Go toggle — switches label and icon based on state
-            actionButton(
-                icon: isPaused ? "play.circle.fill" : "pause.circle.fill",
-                label: isPaused ? "Go" : "Pause",
-                color: isPaused ? .green : .orange
-            ) {
-                isPaused ? resumeWorkout() : pauseWorkout()
-            }
-            .animation(.easeInOut(duration: 0.15), value: isPaused)
-
-            // Stop — end the workout
-            actionButton(icon: "stop.circle.fill", label: "Stop", color: .red) {
-                showingEndConfirm = true
-            }
+            .padding(.horizontal, 4)
+            .padding(.top, 4)
+            .padding(.bottom, 6)
         }
-        .padding(.horizontal, 4)
-        .padding(.top, 10)
-        .padding(.bottom, 6)
         .background(.regularMaterial)
         .overlay(alignment: .top) { Divider() }
     }
@@ -627,12 +831,12 @@ struct SurgeSessionDetailView: View {
             HStack(spacing: 14) {
                 ZStack {
                     Circle().fill(Color.blue.opacity(0.10)).frame(width: 36, height: 36)
-                    Image(systemName: (session.workoutType ?? .run).systemImage)
+                    Image(systemName: session.exerciseSystemImage)
                         .font(.system(size: 15))
                         .foregroundStyle(.blue)
                 }
                 VStack(alignment: .leading, spacing: 3) {
-                    Text((session.workoutType ?? .run).displayName).font(.headline)
+                    Text(session.exerciseDisplayName).font(.headline)
                     Text(resultText(session)).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -685,6 +889,9 @@ struct SurgeSessionDetailView: View {
         guard !isPaused else { return }
         isPaused = true
         pauseStartedAt = now
+        // Freeze the auto rest countdown — keeps autoRestRemaining as-is so resume can continue from it
+        autoRestTask?.cancel()
+        autoRestTask = nil
     }
 
     private func resumeWorkout() {
@@ -699,11 +906,19 @@ struct SurgeSessionDetailView: View {
             try? await Task.sleep(for: .seconds(1.5))
             flashingGreen = false
         }
+        // Resume countdown from where it was paused
+        if autoModeEnabled, let remaining = autoRestRemaining, remaining > 0 {
+            startAutoRest(from: remaining)
+        }
     }
 
     private func startItem(_ item: PlanItem) {
+        cancelAutoRest()
+        sessionCountSnapshot = surgeSession.sessions.count
         if item.workoutType == .run, let route = surgeSession.route {
-            routeForSetup = route
+            // Plan items already specify the target — go directly to GPS recording
+            let mode: SessionMode = (item.measure == .meters || item.measure == .yards) ? .distance : .laps
+            directRunDestination = DirectRunDestination(route: route, mode: mode, target: item.targetValue)
         } else {
             recordingMeasure = item.measure
             recordingTarget = item.targetValue
@@ -747,6 +962,59 @@ struct SurgeSessionDetailView: View {
         if session.distanceMeters > 0 { parts.append(Formatters.distance(session.distanceMeters)) }
         else if session.targetValue > 0 { parts.append(session.displayTarget) }
         return parts.isEmpty ? "—" : parts.joined(separator: " · ")
+    }
+
+    // MARK: - Auto mode
+
+    private func handleAutoModeExerciseComplete() {
+        if currentItemIndex != nil || firstActivePending != nil {
+            startAutoRest()
+        } else {
+            isPaused = true
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            withAnimation { showWorkoutComplete = true }
+        }
+    }
+
+    private func startAutoRest(from seconds: TimeInterval? = nil) {
+        let start = seconds ?? TimeInterval(autoRestDuration)
+        autoRestRemaining = start
+        autoRestTask?.cancel()
+        autoRestTask = Task { @MainActor in
+            var remaining = start
+            while remaining > 0 && !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { return }
+                remaining -= 1
+                withAnimation { autoRestRemaining = remaining }
+                if remaining > 0 && remaining <= 3 {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                }
+            }
+            guard !Task.isCancelled else { return }
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            autoRestRemaining = nil
+            autoStartNextItem()
+        }
+    }
+
+    private func skipAutoRest() {
+        cancelAutoRest()
+        autoStartNextItem()
+    }
+
+    private func cancelAutoRest() {
+        autoRestTask?.cancel()
+        autoRestTask = nil
+        autoRestRemaining = nil
+    }
+
+    private func autoStartNextItem() {
+        if let idx = currentItemIndex {
+            startItem(orderedPlanItems[idx])
+        } else if let first = firstActivePending {
+            startPendingItem(first)
+        }
     }
 }
 
@@ -815,9 +1083,17 @@ fileprivate struct ReorderSheet: View {
 
 struct AddExerciseSheet: View {
     var routeName: String? = nil
+    var hiddenBuiltinRawValues: String = ""
     var onRouteRun: (() -> Void)? = nil
-    let onSelect: (WorkoutItemType) -> Void
+    let onSelectBuiltin: (WorkoutItemType) -> Void
+    let onSelectCustom: (CustomExercise) -> Void
     @Environment(\.dismiss) private var dismiss
+    @Query(sort: \CustomExercise.sortOrder) private var customExercises: [CustomExercise]
+
+    private var visibleBuiltins: [WorkoutItemType] {
+        let hidden = Set(hiddenBuiltinRawValues.split(separator: ",").map(String.init))
+        return WorkoutItemType.allCases.filter { !hidden.contains($0.rawValue) }
+    }
 
     var body: some View {
         NavigationStack {
@@ -826,6 +1102,7 @@ struct AddExerciseSheet: View {
                     Section {
                         Button {
                             onRouteRun?()
+                            dismiss()
                         } label: {
                             Label(routeName, systemImage: "flag.checkered.2.crossed")
                                 .font(.headline)
@@ -836,10 +1113,28 @@ struct AddExerciseSheet: View {
                         Text("GPS Route Run")
                     }
                 }
-                Section(routeName != nil ? "Other Exercises" : "") {
-                    ForEach(WorkoutItemType.allCases) { type in
+
+                if !customExercises.isEmpty {
+                    Section("My Exercises") {
+                        ForEach(customExercises) { exercise in
+                            Button {
+                                onSelectCustom(exercise)
+                                dismiss()
+                            } label: {
+                                Label(exercise.name, systemImage: exercise.iconName)
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                    .padding(.vertical, 4)
+                            }
+                        }
+                    }
+                }
+
+                Section(routeName != nil || !customExercises.isEmpty ? "Built-in Exercises" : "") {
+                    ForEach(visibleBuiltins) { type in
                         Button {
-                            onSelect(type)
+                            onSelectBuiltin(type)
+                            dismiss()
                         } label: {
                             Label(type.displayName, systemImage: type.systemImage)
                                 .font(.headline)
@@ -867,11 +1162,16 @@ struct RouteRunSetupView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var route: Route
 
+    var presetMeasure: WorkoutMeasure? = nil
+    var presetTarget: Double? = nil
+
     @State private var sessionMode: SessionMode = .laps
     @State private var targetLaps: Int = 1
     @State private var targetMeters: Double = 400
     @State private var navigatingToRecording = false
     @State private var didNavigate = false
+
+    private var isPreset: Bool { presetMeasure != nil && presetTarget != nil }
 
     private let lapPresets    = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 20, 25, 50, 100]
     private let meterPresets: [Double] = [1, 5, 10, 20, 40, 50, 75, 100, 125, 150, 200, 250,
@@ -903,34 +1203,55 @@ struct RouteRunSetupView: View {
                 .listRowInsets(EdgeInsets())
             }
 
-            Section {
-                HStack {
-                    Label(Formatters.distance(route.distanceMeters), systemImage: "ruler")
-                    Spacer()
-                    Text("per lap").foregroundStyle(.secondary)
-                }
-                .font(.callout)
-
-                Picker("Mode", selection: $sessionMode) {
-                    Text("Laps").tag(SessionMode.laps)
-                    Text("Meters").tag(SessionMode.distance)
-                }
-                .pickerStyle(.segmented)
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(sessionMode == .laps ? lapPresets : [], id: \.self) { n in
-                            chip(label: "\(n)", isSelected: sessionMode == .laps && targetLaps == n) { targetLaps = n }
-                        }
-                        ForEach(sessionMode == .distance ? meterPresets : [], id: \.self) { m in
-                            chip(label: Formatters.distance(m), isSelected: sessionMode == .distance && targetMeters == m) { targetMeters = m }
-                        }
+            if isPreset {
+                // Target was set by the plan — show it read-only, skip the picker
+                Section {
+                    HStack {
+                        Label(Formatters.distance(route.distanceMeters), systemImage: "ruler")
+                        Spacer()
+                        Text("per lap").foregroundStyle(.secondary)
                     }
-                    .padding(.vertical, 4)
+                    .font(.callout)
+                    HStack {
+                        Label("Target", systemImage: "target")
+                        Spacer()
+                        Text(presetMeasure.map { $0.formatted(presetTarget ?? 0) } ?? "")
+                            .fontWeight(.semibold)
+                    }
+                    .font(.callout)
+                } header: {
+                    Text("Run Target")
                 }
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 0))
-            } header: {
-                Text("Configure Run")
+            } else {
+                Section {
+                    HStack {
+                        Label(Formatters.distance(route.distanceMeters), systemImage: "ruler")
+                        Spacer()
+                        Text("per lap").foregroundStyle(.secondary)
+                    }
+                    .font(.callout)
+
+                    Picker("Mode", selection: $sessionMode) {
+                        Text("Laps").tag(SessionMode.laps)
+                        Text("Meters").tag(SessionMode.distance)
+                    }
+                    .pickerStyle(.segmented)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(sessionMode == .laps ? lapPresets : [], id: \.self) { n in
+                                chip(label: "\(n)", isSelected: sessionMode == .laps && targetLaps == n) { targetLaps = n }
+                            }
+                            ForEach(sessionMode == .distance ? meterPresets : [], id: \.self) { m in
+                                chip(label: Formatters.distance(m), isSelected: sessionMode == .distance && targetMeters == m) { targetMeters = m }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 0))
+                } header: {
+                    Text("Configure Run")
+                }
             }
 
             Section {
@@ -948,6 +1269,7 @@ struct RouteRunSetupView: View {
         }
         .navigationTitle(route.name)
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { applyPresetIfNeeded() }
         .navigationDestination(isPresented: $navigatingToRecording) {
             SessionRecordingView(
                 route: route,
@@ -957,6 +1279,20 @@ struct RouteRunSetupView: View {
         }
         .onChange(of: navigatingToRecording) { _, isNavigating in
             if !isNavigating && didNavigate { dismiss() }
+        }
+    }
+
+    private func applyPresetIfNeeded() {
+        guard let measure = presetMeasure, let target = presetTarget else { return }
+        switch measure {
+        case .meters, .yards:
+            sessionMode = .distance
+            targetMeters = target
+        case .laps:
+            sessionMode = .laps
+            targetLaps = max(1, Int(target))
+        default:
+            break
         }
     }
 
@@ -970,6 +1306,97 @@ struct RouteRunSetupView: View {
                 .foregroundStyle(isSelected ? .white : .primary)
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Workout Complete Overlay
+
+private struct ConfettiPiece: Identifiable {
+    let id = UUID()
+    let x: CGFloat
+    let startY: CGFloat
+    let width: CGFloat
+    let height: CGFloat
+    let color: Color
+    let isCircle: Bool
+    let delay: Double
+    let duration: Double
+    let endRotation: Double
+
+    static func generate(count: Int = 60) -> [ConfettiPiece] {
+        let colors: [Color] = [.red, .blue, .green, .yellow, .orange, .purple, .pink, .teal, .cyan, .mint]
+        return (0..<count).map { i in
+            ConfettiPiece(
+                x: CGFloat.random(in: -200...200),
+                startY: CGFloat.random(in: -700...(-250)),
+                width: CGFloat.random(in: 8...15),
+                height: CGFloat.random(in: 10...20),
+                color: colors.randomElement()!,
+                isCircle: i % 4 == 0,
+                delay: Double.random(in: 0...1.4),
+                duration: Double.random(in: 1.8...2.8),
+                endRotation: Double.random(in: -720...720)
+            )
+        }
+    }
+}
+
+private struct WorkoutCompleteOverlay: View {
+    let onDismiss: () -> Void
+
+    @State private var pieces: [ConfettiPiece] = []
+    @State private var isFalling = false
+    @State private var showContent = false
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.6)
+                .ignoresSafeArea()
+                .onTapGesture { onDismiss() }
+
+            ForEach(pieces) { piece in
+                Group {
+                    if piece.isCircle {
+                        Circle()
+                    } else {
+                        RoundedRectangle(cornerRadius: 2)
+                    }
+                }
+                .frame(width: piece.width, height: piece.height)
+                .foregroundStyle(piece.color)
+                .offset(x: piece.x, y: isFalling ? 900 : piece.startY)
+                .rotationEffect(.degrees(isFalling ? piece.endRotation : 0))
+                .animation(.linear(duration: piece.duration).delay(piece.delay), value: isFalling)
+            }
+
+            if showContent {
+                VStack(spacing: 20) {
+                    Image(systemName: "trophy.fill")
+                        .font(.system(size: 80))
+                        .foregroundStyle(.yellow)
+                        .shadow(color: .orange.opacity(0.5), radius: 10)
+
+                    VStack(spacing: 8) {
+                        Text("Workout Complete!")
+                            .font(.system(size: 28, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.white)
+                        Text("Tap to dismiss")
+                            .font(.callout)
+                            .foregroundStyle(.white.opacity(0.6))
+                    }
+                }
+                .transition(.scale(scale: 0.85).combined(with: .opacity))
+            }
+        }
+        .onAppear {
+            pieces = ConfettiPiece.generate()
+            withAnimation(.spring(duration: 0.5)) { showContent = true }
+            withAnimation(.easeOut(duration: 0.2)) { isFalling = true }
+        }
+        .task {
+            try? await Task.sleep(for: .seconds(5))
+            onDismiss()
+        }
     }
 }
 

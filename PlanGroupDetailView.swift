@@ -8,7 +8,13 @@ import SwiftData
 
 struct PlanGroupDetailView: View {
     @Bindable var group: PlanGroup
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+
     @State private var showingCreatePlan = false
+    @State private var showingRename = false
+    @State private var renameText = ""
+    @State private var showingDeleteConfirm = false
 
     private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
 
@@ -48,6 +54,21 @@ struct PlanGroupDetailView: View {
                     } label: {
                         Image(systemName: "plus")
                     }
+                    Menu {
+                        Button {
+                            renameText = group.name
+                            showingRename = true
+                        } label: {
+                            Label("Rename Group", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) {
+                            showingDeleteConfirm = true
+                        } label: {
+                            Label("Delete Group", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
                 }
             }
         }
@@ -56,6 +77,23 @@ struct PlanGroupDetailView: View {
         }
         .sheet(isPresented: $showingCreatePlan) {
             CreatePlanView(presetGroup: group)
+        }
+        .alert("Rename Group", isPresented: $showingRename) {
+            TextField("Group name", text: $renameText)
+            Button("Save") {
+                let t = renameText.trimmingCharacters(in: .whitespaces)
+                if !t.isEmpty { group.name = t }
+            }
+            Button("Cancel", role: .cancel) { }
+        }
+        .alert("Delete Group?", isPresented: $showingDeleteConfirm) {
+            Button("Delete", role: .destructive) {
+                modelContext.delete(group)
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Plans in this group will become ungrouped.")
         }
     }
 

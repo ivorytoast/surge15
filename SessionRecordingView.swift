@@ -1088,8 +1088,10 @@ struct SessionRecordingView: View {
     }
 
     private func saveSession() {
-        guard !hasSaved, let startedAt, !sessionLocations.isEmpty else {
-            hasSaved = true
+        guard !hasSaved else { return }
+        hasSaved = true
+        guard let startedAt, !sessionLocations.isEmpty else {
+            dismiss()
             return
         }
         let end = Date()
@@ -1117,7 +1119,7 @@ struct SessionRecordingView: View {
             surge.sessions.append(session)
         }
         modelContext.insert(session)
-        hasSaved = true
+        dismiss()
     }
 }
 

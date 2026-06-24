@@ -11,6 +11,8 @@
 		955578772FE9B62800C6F287 /* RouteDebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955578762FE9B62800C6F287 /* RouteDebugView.swift */; };
 		955578792FE9D5F900C6F287 /* CreatePlanGroupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955578782FE9D5F900C6F287 /* CreatePlanGroupView.swift */; };
 		9555787B2FE9D60C00C6F287 /* PlanGroupDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9555787A2FE9D60C00C6F287 /* PlanGroupDetailView.swift */; };
+		955E70742FEB0F03000C2792 /* AnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955E70732FEB0F03000C2792 /* AnalyticsView.swift */; };
+		955E70762FEB2311000C2792 /* ExerciseLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955E70752FEB2311000C2792 /* ExerciseLibraryView.swift */; };
 		956D4B1A2FE737E80024B101 /* LocationTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B192FE737E80024B101 /* LocationTracker.swift */; };
 		956D4B1E2FE73FFF0024B101 /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B1D2FE73FFF0024B101 /* Formatters.swift */; };
 		956D4B202FE740190024B101 /* CreateRouteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B1F2FE740190024B101 /* CreateRouteView.swift */; };
@@ -49,6 +51,8 @@
 		955578762FE9B62800C6F287 /* RouteDebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteDebugView.swift; sourceTree = "<group>"; };
 		955578782FE9D5F900C6F287 /* CreatePlanGroupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatePlanGroupView.swift; sourceTree = "<group>"; };
 		9555787A2FE9D60C00C6F287 /* PlanGroupDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanGroupDetailView.swift; sourceTree = "<group>"; };
+		955E70732FEB0F03000C2792 /* AnalyticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsView.swift; sourceTree = "<group>"; };
+		955E70752FEB2311000C2792 /* ExerciseLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseLibraryView.swift; sourceTree = "<group>"; };
 		956D4AED2FE736230024B101 /* surge15.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = surge15.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		956D4AFC2FE736240024B101 /* surge15Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = surge15Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		956D4B062FE736240024B101 /* surge15UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = surge15UITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -136,6 +140,8 @@
 				955578762FE9B62800C6F287 /* RouteDebugView.swift */,
 				955578782FE9D5F900C6F287 /* CreatePlanGroupView.swift */,
 				9555787A2FE9D60C00C6F287 /* PlanGroupDetailView.swift */,
+				955E70732FEB0F03000C2792 /* AnalyticsView.swift */,
+				955E70752FEB2311000C2792 /* ExerciseLibraryView.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -298,9 +304,11 @@
 				956D4B282FE76ECA0024B101 /* RoutePeekSheet.swift in Sources */,
 				956D4B2E2FE776790024B101 /* SurgeSessionDetailView.swift in Sources */,
 				955578772FE9B62800C6F287 /* RouteDebugView.swift in Sources */,
+				955E70742FEB0F03000C2792 /* AnalyticsView.swift in Sources */,
 				956D4B262FE7405C0024B101 /* SessionDetailView.swift in Sources */,
 				95DDDB602FE87FAA00BE2163 /* ExerciseRecordingView.swift in Sources */,
 				956D4B342FE77E6D0024B101 /* PlanDetailView.swift in Sources */,
+				955E70762FEB2311000C2792 /* ExerciseLibraryView.swift in Sources */,
 				956D4B2A2FE76EDC0024B101 /* EditRouteView.swift in Sources */,
 				955578752FE9B61400C6F287 /* RouteSmoothing.swift in Sources */,
 				956D4B3A2FE78A010024B101 /* SegmentDirection.swift in Sources */,
@@ -475,12 +483,14 @@
 				DEVELOPMENT_TEAM = CV6V8EV5NQ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = surge15;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "surge15 needs your location to record your run routes.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -508,12 +518,14 @@
 				DEVELOPMENT_TEAM = CV6V8EV5NQ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = surge15;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "surge15 needs your location to record your run routes.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

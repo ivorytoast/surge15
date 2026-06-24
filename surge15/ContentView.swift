@@ -962,31 +962,46 @@ struct SessionsHomeView: View {
 }
 
 struct CalendarHomeView: View {
+    private enum ViewMode { case calendar, analytics }
+
     @Query(sort: \SurgeSession.date, order: .reverse) private var surgeSessions: [SurgeSession]
     @State private var selectedDate: Date = Date()
+    @State private var viewMode: ViewMode = .calendar
 
     var body: some View {
         VStack(spacing: 0) {
-            CalendarMonthView(selectedDate: $selectedDate, activeDates: activeDates)
-                .padding(.horizontal)
-                .padding(.top, 12)
+            Picker("", selection: $viewMode) {
+                Text("Calendar").tag(ViewMode.calendar)
+                Text("Analytics").tag(ViewMode.analytics)
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
 
-            Divider()
-                .padding(.top, 8)
+            if viewMode == .calendar {
+                CalendarMonthView(selectedDate: $selectedDate, activeDates: activeDates)
+                    .padding(.horizontal)
 
-            if sessionsOnSelectedDate.isEmpty {
-                emptyDayView
-            } else {
-                List {
-                    ForEach(sessionsOnSelectedDate.sorted { $0.createdAt < $1.createdAt }) { surge in
-                        NavigationLink(value: surge) {
-                            surgeRow(surge)
+                Divider()
+                    .padding(.top, 8)
+
+                if sessionsOnSelectedDate.isEmpty {
+                    emptyDayView
+                } else {
+                    List {
+                        ForEach(sessionsOnSelectedDate.sorted { $0.createdAt < $1.createdAt }) { surge in
+                            NavigationLink(value: surge) {
+                                surgeRow(surge)
+                            }
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
                         }
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
                     }
+                    .listStyle(.plain)
                 }
-                .listStyle(.plain)
+            } else {
+                AnalyticsView()
             }
         }
     }

@@ -209,6 +209,25 @@ enum WorkoutMeasure: String, Codable, CaseIterable {
     }
 }
 
+// MARK: - CustomExercise (user-defined non-GPS exercise)
+
+@Model
+final class CustomExercise {
+    var name: String
+    var iconName: String
+    var measures: [WorkoutMeasure]
+    var sortOrder: Int
+    var createdAt: Date
+
+    init(name: String, iconName: String, measures: [WorkoutMeasure], sortOrder: Int = 0) {
+        self.name = name
+        self.iconName = iconName
+        self.measures = measures
+        self.sortOrder = sortOrder
+        self.createdAt = Date()
+    }
+}
+
 // MARK: - PlanGroup (a named container that holds plans; can be empty)
 
 @Model
@@ -421,8 +440,18 @@ final class Session {
     var workoutType: WorkoutItemType? = WorkoutItemType.run
     var workoutMeasure: WorkoutMeasure = WorkoutMeasure.laps
     var targetValue: Double = 1.0
+    var customExerciseName: String? = nil
+    var customExerciseIcon: String? = nil
 
     var displayTarget: String { workoutMeasure.formatted(targetValue) }
+
+    var exerciseDisplayName: String {
+        workoutType?.displayName ?? customExerciseName ?? "Exercise"
+    }
+
+    var exerciseSystemImage: String {
+        workoutType?.systemImage ?? customExerciseIcon ?? "figure.mixed.cardio"
+    }
 
     init(startedAt: Date = Date(), targetLaps: Int = 1) {
         self.startedAt = startedAt

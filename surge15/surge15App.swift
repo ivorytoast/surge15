@@ -21,6 +21,7 @@ struct surge15App: App {
             PlanGroup.self,
             Plan.self,
             PlanItem.self,
+            CustomExercise.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

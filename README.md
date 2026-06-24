@@ -102,6 +102,7 @@ During session recording, when `currentLapDistance` crosses an interior segment 
 | `PlanGroup` | `name`, `createdAt`, `cardGradientIndex`, `isFavorite`, `plans` | Named container for plans. Can be empty. Plans use `.nullify` delete rule — deleting a group orphans its plans rather than deleting them. |
 | `Plan` | `name`, `createdAt`, `items`, `group?`, `isFavorite`, `cardGradientIndex` | Template. `items` cascade-delete with the plan. Belongs to an optional `PlanGroup`. |
 | `PlanItem` | `order`, `workoutType`, `measure`, `targetValue`, `plan` | One exercise target in a plan. Route-agnostic. |
+| `CustomExercise` | `name`, `iconName`, `measures: [WorkoutMeasure]`, `sortOrder`, `createdAt` | User-defined non-GPS exercise. Supports multiple measures — gate screen shows a picker when more than one is set. Name capped at 20 chars. Icon chosen from a curated SF Symbol grid. |
 
 Geo: `CLLocationCoordinate2D.distance(to:)` extension lives in `Item.swift`.
 
@@ -136,7 +137,8 @@ A single `@Observable` class wrapping `CLLocationManager`:
 | `SessionsHomeView` | NavigationStack wrapping the custom calendar; nav bar hidden. |
 | `CalendarHomeView` | Custom month grid (active-day dots) + day's sessions grouped by ☀️ / 🌅 / 🌙 + random emoji on empty days. |
 | `CalendarMonthView` | Lightweight grid replacement for `DatePicker(.graphical)` — needed because the built-in version can't show per-day markers. |
-| `SettingsHomeView` | "Coming Soon" placeholder. |
+| `SettingsHomeView` | Countdown default stepper, auto-rest duration stepper, link to Exercise Library, link to Route Smoothing debug. |
+| `ExerciseLibraryView` | Manage built-in exercise visibility (toggle hide/show per type) and create/edit/delete custom exercises. `ExerciseEditSheet` has name field (20 char limit), SF Symbol icon picker, and multi-select measure checkboxes. |
 
 ### Tab bar
 
@@ -417,6 +419,38 @@ The favorite heart indicator was moved from the `PlanDetailView` toolbar into th
 
 **Completed ad-hoc sessions — green checkmark circle.**
 The `+` icon on ad-hoc session rows in the timeline was changed to a green `checkmark.circle.fill` to visually distinguish "done" from "add".
+
+### Iteration 22 — Custom exercise library, plan flow polish, analytics redesign, group/plan management (✅ shipped)
+
+**Custom Exercise Library** (`ExerciseLibraryView.swift`, `Item.swift`)
+- New `CustomExercise` SwiftData model: `name` (20 char limit), `iconName`, `measures: [WorkoutMeasure]`, `sortOrder`.
+- **Multi-select measurements**: when creating or editing a custom exercise, tap any combination of Reps / Meters / Yards / Minutes. At least one must remain selected. When multiple are chosen, the recording gate screen shows a segmented measure picker identical to built-in exercises like Lunge.
+- **Hide/show built-ins**: toggle switches per exercise type (all except Run). Toggled types are stored as a comma-separated `@AppStorage` string and filtered out of the exercise picker and workout queue.
+- Custom exercises appear in the "Add Exercise" sheet under a "My Exercises" section and can be added to the pending queue or used ad-hoc.
+- `Session` model extended with `customExerciseName: String?` and `customExerciseIcon: String?` so custom sessions display correctly in the timeline history. Computed `exerciseDisplayName` and `exerciseSystemImage` fall back gracefully.
+- `ExerciseRecordingView` given a second init path that accepts `measures: [WorkoutMeasure]` instead of a single `WorkoutItemType`.
+- `SurgeSessionDetailView` updated: `PendingExercise` carries `availableMeasures: [WorkoutMeasure]` for custom exercises; `CustomRecordingRequest` updated to `measures: [WorkoutMeasure]`.
+
+**Plan session flow polish** (`SurgeSessionDetailView.swift`, `SessionRecordingView.swift`, `ExerciseRecordingView.swift`)
+- **Skip GPS run config page**: when a plan item is a Run with a known target, `directRunDestination` is set directly, bypassing `RouteRunSetupView` entirely. Ad-hoc runs still show the config screen.
+- **Skip all exercise summary screens**: after any exercise (GPS run or non-GPS) completes inside a surge session, the view dismisses straight back to the timeline instead of showing the "Session Saved" / "Back to Workout" summary. Summary screen only appears for standalone exercises outside a surge session.
+- **Auto mode UX overhaul**: replaced segmented Picker with a custom two-chip toggle. Manual chip is white; Auto chip is orange with a bolt icon. Tapping Auto when not enabled shows a confirmation alert ("Switching to Auto Mode will start the first workout…"). On confirm, the first exercise starts immediately.
+- **Auto mode defaults to Manual**: changed `@AppStorage` → `@State` so auto mode resets to off each time a surge session is opened. Previously it persisted across sessions.
+- **Workout Complete overlay**: after the last exercise in auto mode, instead of starting another countdown timer, a full-screen overlay appears with falling confetti (60 animated pieces, staggered delays, random colors), a trophy icon, "Workout Complete!" text, and a tap-to-dismiss. The workout is automatically paused. `handleAutoModeExerciseComplete()` checks whether any future items remain before deciding between auto-rest and the celebration.
+
+**Analytics redesign** (`AnalyticsView.swift`)
+- **Headline stat above each chart**: frequency card shows total workout count (or selected bar's count while dragging); pace card shows average pace with best pace in the top-right corner.
+- **Tap / drag to inspect**: `chartXSelection(value:)` on both charts. Touching a bar or line point updates the headline in real time. Unselected bars dim to 20% opacity; a dashed `RuleMark` appears at the selected position.
+- **Y-axis hidden on frequency chart**: the bar chart needs no y-axis when the count is shown in the headline.
+- **Pace y-axis simplified**: only 2 labels (min and max in range, formatted as `m:ss`) instead of a dense tick list.
+- **Taller frames**: charts grew from 130 pt to 170 pt.
+- **Selection resets on range change**: switching 7D / 30D / 3M / All clears any active inspection.
+- **Card shell refactor**: `analyticsCard(title:subtitle:content:)` replaced with `cardShell { }` — the headline stat is now inlined inside each card instead of being a separate section header, matching how fitness apps like Strava present chart data.
+
+**Plan & group management** (`PlanDetailView.swift`, `PlanGroupDetailView.swift`)
+- **Group rename & delete**: `PlanGroupDetailView` toolbar gains a `…` menu — "Rename Group" (alert with text field) and "Delete Group" (confirmation alert; plans become ungrouped, not deleted, via the existing `.nullify` delete rule).
+- **Plan rename & delete**: `PlanDetailView` toolbar gains a `…` menu — "Rename Plan" (alert with text field) and "Delete Plan" (confirmation alert; plan and all its `PlanItem`s are permanently removed).
+- **Move plan to group**: "Add to Group" / "Move to Group" opens `MovePlanToGroupSheet` — a list of all groups with gradient swatches and a checkmark on the current group. Tapping any group moves the plan instantly. "Remove from Group" appears when the plan already belongs to one.
 
 ## Possible next steps
 

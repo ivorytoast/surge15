@@ -8,10 +8,18 @@ import SwiftData
 
 struct PlanDetailView: View {
     @Environment(\.startPlan) private var startPlan
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
     @Bindable var plan: Plan
 
     @Query(sort: \Route.createdAt, order: .reverse) private var routes: [Route]
+    @Query(sort: \PlanGroup.createdAt, order: .reverse) private var allGroups: [PlanGroup]
+
     @State private var selectedRoute: Route? = nil
+    @State private var showingRename = false
+    @State private var renameText = ""
+    @State private var showingDeleteConfirm = false
+    @State private var showingMoveToGroup = false
 
     private var canStart: Bool { selectedRoute != nil && !plan.items.isEmpty }
 
@@ -102,16 +110,71 @@ struct PlanDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    if let route = selectedRoute {
-                        startPlan?(plan, route)
+                HStack(spacing: 16) {
+                    Menu {
+                        Button {
+                            renameText = plan.name
+                            showingRename = true
+                        } label: {
+                            Label("Rename Plan", systemImage: "pencil")
+                        }
+
+                        if !allGroups.isEmpty {
+                            Button {
+                                showingMoveToGroup = true
+                            } label: {
+                                Label(plan.group == nil ? "Add to Group" : "Move to Group", systemImage: "folder")
+                            }
+                        }
+
+                        if plan.group != nil {
+                            Button {
+                                plan.group = nil
+                            } label: {
+                                Label("Remove from Group", systemImage: "folder.badge.minus")
+                            }
+                        }
+
+                        Button(role: .destructive) {
+                            showingDeleteConfirm = true
+                        } label: {
+                            Label("Delete Plan", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
                     }
-                } label: {
-                    Text("Start")
-                        .fontWeight(.semibold)
+
+                    Button {
+                        if let route = selectedRoute {
+                            startPlan?(plan, route)
+                        }
+                    } label: {
+                        Text("Start")
+                            .fontWeight(.semibold)
+                    }
+                    .disabled(!canStart)
                 }
-                .disabled(!canStart)
             }
+        }
+        .alert("Rename Plan", isPresented: $showingRename) {
+            TextField("Plan name", text: $renameText)
+            Button("Save") {
+                let t = renameText.trimmingCharacters(in: .whitespaces)
+                if !t.isEmpty { plan.name = t }
+            }
+            Button("Cancel", role: .cancel) { }
+        }
+        .alert("Delete Plan?", isPresented: $showingDeleteConfirm) {
+            Button("Delete", role: .destructive) {
+                modelContext.delete(plan)
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This plan and all its exercises will be permanently deleted.")
+        }
+        .sheet(isPresented: $showingMoveToGroup) {
+            MovePlanToGroupSheet(plan: plan, groups: allGroups)
         }
     }
 
@@ -159,6 +222,72 @@ struct PlanDetailView: View {
             .textCase(.uppercase)
             .padding(.leading, 4)
             .padding(.bottom, 6)
+    }
+}
+
+// MARK: - Move to Group sheet
+
+struct MovePlanToGroupSheet: View {
+    @Bindable var plan: Plan
+    let groups: [PlanGroup]
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if plan.group != nil {
+                    Section {
+                        Button {
+                            plan.group = nil
+                            dismiss()
+                        } label: {
+                            HStack {
+                                Image(systemName: "tray")
+                                    .frame(width: 28)
+                                    .foregroundStyle(.secondary)
+                                Text("Ungrouped")
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                if plan.group == nil {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(.blue)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Section("Groups") {
+                    ForEach(groups) { group in
+                        Button {
+                            plan.group = group
+                            dismiss()
+                        } label: {
+                            HStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(planGradients[group.cardGradientIndex % planGradients.count].linear)
+                                    .frame(width: 28, height: 28)
+                                Text(group.name)
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                if plan.group?.persistentModelID == group.persistentModelID {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(.blue)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Move to Group")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }
 

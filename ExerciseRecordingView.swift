@@ -2,8 +2,8 @@
 //  ExerciseRecordingView.swift
 //  surge15
 //
-//  Timer-based recording screen for non-GPS exercises (Lunge, Burpee Broad Jump).
-//  User picks measure + target before starting, then times the exercise live.
+//  Timer-based recording screen for non-GPS exercises (built-in or custom).
+//  User picks target before starting, then times the exercise live.
 //
 
 import SwiftUI
@@ -14,7 +14,16 @@ struct ExerciseRecordingView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    let workoutType: WorkoutItemType
+    // Display info (derived from either built-in or custom exercise)
+    private let exerciseName: String
+    private let exerciseIcon: String
+    private let exerciseMeasures: [WorkoutMeasure]
+
+    // Save info — exactly one of these pairs is non-nil
+    private let workoutType: WorkoutItemType?
+    private let customSaveName: String?
+    private let customSaveIcon: String?
+
     var surgeSession: SurgeSession?
 
     @State private var measure: WorkoutMeasure
@@ -38,13 +47,20 @@ struct ExerciseRecordingView: View {
     private let repPresets: [Double]    = [5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100]
     private let minutePresets: [Double] = [0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 7, 10, 15, 20]
 
+    // MARK: - Init for built-in exercises
+
     init(
         workoutType: WorkoutItemType,
         measure: WorkoutMeasure? = nil,
         targetValue: Double? = nil,
         surgeSession: SurgeSession? = nil
     ) {
+        self.exerciseName = workoutType.displayName
+        self.exerciseIcon = workoutType.systemImage
+        self.exerciseMeasures = workoutType.availableMeasures
         self.workoutType = workoutType
+        self.customSaveName = nil
+        self.customSaveIcon = nil
         self.surgeSession = surgeSession
         let resolvedMeasure = measure ?? workoutType.availableMeasures[0]
         _measure = State(initialValue: resolvedMeasure)
@@ -57,8 +73,37 @@ struct ExerciseRecordingView: View {
             }
         }()
         _targetValue = State(initialValue: resolvedTarget)
-        // Skip the gate when the caller already provided a configured target
         _skipGate = State(initialValue: measure != nil || targetValue != nil)
+    }
+
+    // MARK: - Init for custom exercises
+
+    init(
+        customName: String,
+        customIcon: String,
+        measures: [WorkoutMeasure],
+        targetValue: Double? = nil,
+        surgeSession: SurgeSession? = nil
+    ) {
+        let primary = measures.first ?? .reps
+        self.exerciseName = customName
+        self.exerciseIcon = customIcon
+        self.exerciseMeasures = measures
+        self.workoutType = nil
+        self.customSaveName = customName
+        self.customSaveIcon = customIcon
+        self.surgeSession = surgeSession
+        _measure = State(initialValue: primary)
+        let defaultTarget: Double = {
+            switch primary {
+            case .reps:           return 10
+            case .meters, .yards: return 24
+            case .minutes:        return 2
+            case .laps:           return 1
+            }
+        }()
+        _targetValue = State(initialValue: targetValue ?? defaultTarget)
+        _skipGate = State(initialValue: false)
     }
 
     private var isActive: Bool { startedAt != nil && endedAt == nil && !isCountingDown }
@@ -82,7 +127,7 @@ struct ExerciseRecordingView: View {
             }
             .animation(.easeInOut(duration: 0.25), value: isCountingDown)
             .animation(.easeInOut(duration: 0.3), value: hasSaved)
-            .navigationTitle(workoutType.displayName)
+            .navigationTitle(exerciseName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if !isActive && !hasSaved && !isCountingDown {
@@ -113,17 +158,17 @@ struct ExerciseRecordingView: View {
             Spacer()
 
             VStack(spacing: 12) {
-                Image(systemName: workoutType.systemImage)
+                Image(systemName: exerciseIcon)
                     .font(.system(size: 56))
                     .foregroundStyle(.blue)
-                Text(workoutType.displayName)
+                Text(exerciseName)
                     .font(.title.bold())
             }
 
             VStack(spacing: 16) {
-                if workoutType.availableMeasures.count > 1 {
+                if exerciseMeasures.count > 1 {
                     Picker("Measure", selection: $measure) {
-                        ForEach(workoutType.availableMeasures, id: \.self) { m in
+                        ForEach(exerciseMeasures, id: \.self) { m in
                             Text(m.displayName).tag(m)
                         }
                     }
@@ -166,7 +211,7 @@ struct ExerciseRecordingView: View {
             Spacer()
 
             HStack(spacing: 10) {
-                Image(systemName: workoutType.systemImage)
+                Image(systemName: exerciseIcon)
                     .font(.title2)
                     .foregroundStyle(.blue)
                 Text(measure.formatted(targetValue))
@@ -210,7 +255,7 @@ struct ExerciseRecordingView: View {
                 .font(.system(size: 80))
                 .foregroundStyle(.green)
 
-            Text(workoutType.displayName)
+            Text(exerciseName)
                 .font(.title.bold())
 
             HStack(spacing: 32) {
@@ -370,6 +415,8 @@ struct ExerciseRecordingView: View {
         guard let start = startedAt else { return }
         let session = Session(startedAt: start)
         session.workoutType = workoutType
+        session.customExerciseName = customSaveName
+        session.customExerciseIcon = customSaveIcon
         session.workoutMeasure = measure
         session.targetValue = targetValue
         session.endedAt = endedAt ?? Date()
@@ -377,6 +424,9 @@ struct ExerciseRecordingView: View {
         if let surge = surgeSession {
             session.surgeSession = surge
             surge.sessions.append(session)
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            dismiss()
+            return
         }
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         hasSaved = true
