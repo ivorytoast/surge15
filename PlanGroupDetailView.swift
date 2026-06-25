@@ -16,6 +16,8 @@ struct PlanGroupDetailView: View {
     @State private var showingCreatePlan = false
 
     // Plan actions (triggered by long-press on plan row)
+    @State private var editingPlan: Plan? = nil
+    @State private var recoloringPlan: Plan? = nil
     @State private var renamingPlan: Plan? = nil
     @State private var planRenameText = ""
     @State private var movingPlan: Plan? = nil
@@ -49,6 +51,12 @@ struct PlanGroupDetailView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .contextMenu {
+                                    Button { editingPlan = plan } label: {
+                                        Label("Edit Plan", systemImage: "square.and.pencil")
+                                    }
+                                    Button { recoloringPlan = plan } label: {
+                                        Label("Edit Color", systemImage: "paintpalette")
+                                    }
                                     Button {
                                         planRenameText = plan.name
                                         renamingPlan = plan
@@ -97,6 +105,12 @@ struct PlanGroupDetailView: View {
         }
         .sheet(isPresented: $showingCreatePlan) {
             CreatePlanView(presetGroup: group)
+        }
+        .sheet(item: $editingPlan) { plan in
+            CreatePlanView(editingPlan: plan)
+        }
+        .sheet(item: $recoloringPlan) { plan in
+            PlanColorPickerSheet(plan: plan)
         }
         .sheet(item: $movingPlan) { plan in
             MovePlanToGroupSheet(plan: plan, groups: allGroups)

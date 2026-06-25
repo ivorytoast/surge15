@@ -28,6 +28,7 @@ struct SessionRecordingView: View {
 
     var initialMode: SessionMode = .laps
     var initialTarget: Double = 1.0
+    var targetPaceSecondsPerKm: Double? = nil
 
     @State private var tracker = LocationTracker()
 
@@ -61,6 +62,9 @@ struct SessionRecordingView: View {
     @State private var cameraPosition: MapCameraPosition = .automatic
     @State private var didCenterCamera = false
 
+    // Start direction
+    @State private var startFromEnd: Bool = false
+
     // Segment alerts
     @State private var announcedSegmentsInLap: Set<Int> = []
     @State private var turnaroundAlertVisible = false
@@ -90,6 +94,11 @@ struct SessionRecordingView: View {
                     .overlay(alignment: .bottom) {
                         VStack(spacing: 8) {
                             authorizationFootnote
+                            Picker("Start from", selection: $startFromEnd) {
+                                Text("From Beginning").tag(false)
+                                Text("From End").tag(true)
+                            }
+                            .pickerStyle(.segmented)
                             gateStatusBanner
                         }
                         .padding(.horizontal, 16)
@@ -149,6 +158,10 @@ struct SessionRecordingView: View {
             evaluateAutoStop()
             centerCameraOnStartIfNeeded()
         }
+        .onChange(of: startFromEnd) { _, _ in
+            didCenterCamera = false
+            centerCameraOnStartIfNeeded()
+        }
         .onDisappear {
             countdownTask?.cancel()
             if isSessionActive { saveSession() }
@@ -194,10 +207,14 @@ struct SessionRecordingView: View {
 
     private var currentLocation: CLLocation? { tracker.recordedLocations.last }
 
+    private var gateCoordinate: CLLocationCoordinate2D? {
+        startFromEnd ? route.endCoordinate : route.startCoordinate
+    }
+
     private var distanceToStart: CLLocationDistance? {
         guard let current = currentLocation?.coordinate,
-              let start = route.startCoordinate else { return nil }
-        return current.distance(to: start)
+              let gate = gateCoordinate else { return nil }
+        return current.distance(to: gate)
     }
 
     private var isWithinStartTolerance: Bool {
@@ -225,23 +242,23 @@ struct SessionRecordingView: View {
     /// is inside the 20 m tolerance (the line is no longer informative).
     private var guidanceArrow: GuidanceArrow? {
         guard let userCoord = currentLocation?.coordinate,
-              let start = route.startCoordinate,
+              let gate = gateCoordinate,
               !isWithinStartTolerance else { return nil }
 
         let f = 0.85
         let arrowCoord = CLLocationCoordinate2D(
-            latitude: userCoord.latitude + (start.latitude - userCoord.latitude) * f,
-            longitude: userCoord.longitude + (start.longitude - userCoord.longitude) * f
+            latitude: userCoord.latitude + (gate.latitude - userCoord.latitude) * f,
+            longitude: userCoord.longitude + (gate.longitude - userCoord.longitude) * f
         )
 
-        let dLon = (start.longitude - userCoord.longitude) * .pi / 180
+        let dLon = (gate.longitude - userCoord.longitude) * .pi / 180
         let lat1 = userCoord.latitude * .pi / 180
-        let lat2 = start.latitude * .pi / 180
+        let lat2 = gate.latitude * .pi / 180
         let y = sin(dLon) * cos(lat2)
         let x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
         let bearing = atan2(y, x) * 180 / .pi
 
-        return GuidanceArrow(userCoord: userCoord, startCoord: start, arrowCoord: arrowCoord, bearing: bearing)
+        return GuidanceArrow(userCoord: userCoord, startCoord: gate, arrowCoord: arrowCoord, bearing: bearing)
     }
 
     private var sessionLocations: [CLLocation] {
@@ -308,7 +325,8 @@ struct SessionRecordingView: View {
 
             // ── Top row: Pace + Total Time ──────────────────────────────
             HStack(spacing: 0) {
-                bigMetricCard(title: "Pace", value: paceDisplay, unit: "/km")
+                bigMetricCard(title: "Pace", value: paceDisplay, unit: "/km",
+                              valueColor: paceValueColor, targetLabel: targetPaceDisplay)
                 Divider().frame(height: 64)
                 bigMetricCard(title: "Total Time", value: Formatters.duration(totalElapsed), unit: "")
             }
@@ -392,7 +410,8 @@ struct SessionRecordingView: View {
         }
     }
 
-    private func bigMetricCard(title: String, value: String, unit: String) -> some View {
+    private func bigMetricCard(title: String, value: String, unit: String,
+                                valueColor: Color = .primary, targetLabel: String? = nil) -> some View {
         VStack(spacing: 4) {
             Text(title)
                 .font(.caption)
@@ -402,11 +421,17 @@ struct SessionRecordingView: View {
                 Text(value)
                     .font(.system(size: 40, weight: .bold, design: .rounded))
                     .monospacedDigit()
+                    .foregroundStyle(valueColor)
                 if !unit.isEmpty {
                     Text(unit)
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
+            }
+            if let targetLabel {
+                Text(targetLabel)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity)
@@ -446,6 +471,18 @@ struct SessionRecordingView: View {
         let mins = Int(pace) / 60
         let secs = Int(pace) % 60
         return String(format: "%d:%02d", mins, secs)
+    }
+
+    private var paceValueColor: Color {
+        guard let target = targetPaceSecondsPerKm,
+              let current = currentPaceSecondsPerKm else { return .primary }
+        return current <= target ? .green : .red
+    }
+
+    private var targetPaceDisplay: String? {
+        guard let target = targetPaceSecondsPerKm else { return nil }
+        let total = Int(target.rounded())
+        return String(format: "target %d:%02d/km", total / 60, total % 60)
     }
 
     /// Estimated seconds remaining based on current pace.
@@ -714,20 +751,20 @@ struct SessionRecordingView: View {
 
     @ViewBuilder
     private var gateMapFullScreen: some View {
-        if route.startCoordinate != nil {
+        if gateCoordinate != nil {
             Map(position: $cameraPosition) {
-                if let start = route.startCoordinate {
-                    MapCircle(center: start, radius: startToleranceMeters)
+                if let gate = gateCoordinate {
+                    MapCircle(center: gate, radius: startToleranceMeters)
                         .foregroundStyle(Color.green.opacity(0.25))
                         .stroke(Color.green, lineWidth: 3)
 
-                    Annotation("Start", coordinate: start) {
+                    Annotation(startFromEnd ? "End" : "Start", coordinate: gate) {
                         ZStack {
                             Circle()
                                 .fill(.white)
                                 .frame(width: 28, height: 28)
                                 .shadow(radius: 2)
-                            Image(systemName: "flag.fill")
+                            Image(systemName: startFromEnd ? "flag.checkered" : "flag.fill")
                                 .foregroundStyle(.green)
                                 .font(.system(size: 14, weight: .bold))
                         }
@@ -805,17 +842,18 @@ struct SessionRecordingView: View {
 
     private var gateStatusMessage: String {
         guard let d = distanceToStart else { return "Acquiring GPS…" }
-        if d <= startToleranceMeters { return "You're at the start — press Start!" }
+        let point = startFromEnd ? "end" : "start"
+        if d <= startToleranceMeters { return "You're at the \(point) — press Start!" }
         let dist = Formatters.distance(d)
         return d <= 60
-            ? "Almost there! Walk \(dist) closer to start."
-            : "You are too far away! Walk \(dist) closer to start."
+            ? "Almost there! Walk \(dist) closer to the \(point)."
+            : "You are too far away! Walk \(dist) closer to the \(point)."
     }
 
     private func centerCameraOnStartIfNeeded() {
-        guard !didCenterCamera, let start = route.startCoordinate else { return }
+        guard !didCenterCamera, let gate = gateCoordinate else { return }
         cameraPosition = .region(MKCoordinateRegion(
-            center: start,
+            center: gate,
             latitudinalMeters: 150,
             longitudinalMeters: 150
         ))
@@ -1030,15 +1068,30 @@ struct SessionRecordingView: View {
     private func checkSegmentBoundaries() {
         guard isSessionActive else { return }
         let ends = route.segmentEndDistances
-        // Only interior boundaries trigger turnaround alerts; the final one is the lap end.
         guard ends.count > 1 else { return }
         let segments = route.sortedSegments
-        let interior = ends.dropLast()
-        for (idx, threshold) in interior.enumerated() {
-            if !announcedSegmentsInLap.contains(idx) && currentLapDistance >= threshold {
-                announcedSegmentsInLap.insert(idx)
-                let direction = SegmentDirection(rawValue: segments[idx].endLabel) ?? .around
-                fireTurnaroundAlert(direction: direction)
+        let interior = Array(ends.dropLast())
+
+        if startFromEnd {
+            // Running from the end: thresholds are mirrored around totalDist.
+            // Interior boundary that was at `forwardEnd` from start is at `totalDist - forwardEnd` from end.
+            // Directions are mirrored (left↔right; turnaround is symmetric).
+            let totalDist = route.distanceMeters
+            for (idx, forwardEnd) in interior.enumerated() {
+                let threshold = totalDist - forwardEnd
+                if !announcedSegmentsInLap.contains(idx) && currentLapDistance >= threshold {
+                    announcedSegmentsInLap.insert(idx)
+                    let dir = SegmentDirection(rawValue: segments[idx].endLabel) ?? .around
+                    fireTurnaroundAlert(direction: dir.reversed)
+                }
+            }
+        } else {
+            for (idx, threshold) in interior.enumerated() {
+                if !announcedSegmentsInLap.contains(idx) && currentLapDistance >= threshold {
+                    announcedSegmentsInLap.insert(idx)
+                    let direction = SegmentDirection(rawValue: segments[idx].endLabel) ?? .around
+                    fireTurnaroundAlert(direction: direction)
+                }
             }
         }
     }

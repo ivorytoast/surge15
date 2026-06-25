@@ -606,10 +606,42 @@ A wide sweep of visual consistency and UX clarity changes across the Plans, Rout
 - 15 quotes with a light, forward-looking tone (e.g. "Woah, you're already planning your workout for this day.").
 - Implemented via an `isFuture: Bool` computed property on the selected date; `quoteForSelectedDate` checks this before falling back to `restDayQuotes`.
 
+### Iteration 24 — Plan editing, target pace display, and plan management polish (✅ shipped)
+
+**Completed plan item display** (`SurgeSessionDetailView.swift`)
+- Run sessions in the timeline now show actual pace in the green result text alongside duration and distance — e.g. `"2:15 · 400m · 5:12/km"`.
+- The target comparison line now always renders (never blank):
+  - Run + target set + pace computed → ✓ / ✗ badge + "Beat 5:30/km target" / "Missed 5:30/km target" in green/red.
+  - Run + target set but GPS distance too short to compute pace → "Target 5:30/km · pace unavailable" (secondary).
+  - Run + no target set → "No Pace Target" (secondary).
+  - Non-run + target set + duration available → "Beat 1:30 target" / "Missed 1:30 target".
+  - Non-run + target set but no duration → "Target 1:30 · time unavailable".
+  - Non-run + no target set → "No Time Target" (secondary).
+- Fixed a bug where a compound `if let targetPace = ..., let actualPace = ...` caused "No Pace Target" to appear even when a target was set, whenever GPS couldn't produce a valid pace (too-short track). Replaced with nested `if let` checks so the two failure modes produce distinct messages.
+
+**Edit Plan** (`CreatePlanView.swift`, `PlansHomeView.swift`, `PlanGroupDetailView.swift`)
+- Long-pressing any plan in any list (All Plans, inside a group, Favorite Plans) now shows an "Edit Plan" option in the context menu.
+- Opens `CreatePlanView` pre-filled with the plan's existing name, group, gradient, and full exercise list including pace/time targets.
+- Navigation title changes to "Edit Plan" vs "New Plan".
+- Saving in edit mode replaces the plan's items in place (old `PlanItem`s are deleted from the model context, new ones appended) and updates the name, group, and gradient — no new plan is inserted.
+- Implemented by adding `var editingPlan: Plan? = nil` parameter to `CreatePlanView`. Pre-population runs in `.onAppear` when `editingPlan` is set, so the same view handles both create and edit without duplication.
+
+**Edit Color for plans** (`PlansHomeView.swift`)
+- Long-pressing a plan also shows "Edit Color" in the context menu (alongside Edit Plan, Rename Plan, Move to Group, Delete Plan).
+- Opens a new `PlanColorPickerSheet` — a half-height sheet with a live `PlanCardView` preview at the top and the full `GradientPickerView` below.
+- Available in all three plan list surfaces: All Plans, group detail, Favorite Plans.
+
+**Break exercise has no time target** (`CreatePlanView.swift`)
+- The "Time target (optional)" chip row is hidden when the selected exercise type is `.rest` (Break). A break's duration is already the target — adding a separate target on top of it is redundant.
+- Switching to Break also clears any previously selected `pickerTargetSeconds` via the existing `.onChange(of: pickerType)` handler.
+
+**Removed card preview from New/Edit Plan form** (`CreatePlanView.swift`)
+- The `previewCard` that showed a live plan card mockup at the top of the form was removed. It took up significant vertical space above the name field and added no actionable information at creation time.
+
 ## Possible next steps
 
 - **Break countdown in `ExerciseRecordingView`** — currently a Break records elapsed time like any other exercise. It should count *down* from the target instead of counting up, and auto-complete when it reaches zero.
-- **Plan editing**: `PlanDetailView` only supports rename + delete. Editing individual plan items (reorder, change target, remove) needs to be added — could reuse the same inline picker from `CreatePlanView`.
+- **Plan editing**: ✅ Done in Iteration 24 — long-press any plan → "Edit Plan" opens a pre-filled `CreatePlanView`.
 - **GPS-backed run option in Surge Session** — currently "Add Exercise → Run" in a surge session goes to `ExerciseRecordingView` (time only, no GPS). Could offer the option to link to a saved route for GPS-tracked laps.
 - **Plan satisfaction for reps/minutes** — the greedy satisfaction check in `SurgeSessionDetailView` only auto-ticks Run items (meters/laps). Reps and timed exercises can't be auto-checked yet.
 - **Real Settings**: measurement units (m/km ↔ miles / yards), backups (Files / iCloud export), screen-on lock during recording.

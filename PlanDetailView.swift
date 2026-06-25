@@ -154,6 +154,13 @@ struct PlanDetailView: View {
                 Text(item.displayTarget)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if let ts = item.targetSeconds {
+                    Text(item.workoutType == .run
+                         ? "Target: \(paceLabel(ts))/km"
+                         : "Target: \(Formatters.duration(ts))")
+                        .font(.caption2)
+                        .foregroundStyle(.blue.opacity(0.85))
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.bottom, isLast ? 0 : 16)
@@ -161,6 +168,11 @@ struct PlanDetailView: View {
     }
 
     // MARK: - Helpers
+
+    private func paceLabel(_ secondsPerKm: Double) -> String {
+        let total = Int(secondsPerKm.rounded())
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
 
     private func detailSectionHeader(_ title: String) -> some View {
         Text(title)

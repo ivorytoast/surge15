@@ -48,6 +48,17 @@ enum SegmentDirection: String, CaseIterable, Hashable {
         }
     }
 
+    /// Mirror the direction for a reverse-direction run (left↔right; turnaround/straight stay the same).
+    var reversed: SegmentDirection {
+        switch self {
+        case .left:     return .right
+        case .right:    return .left
+        case .straight: return .straight
+        case .around:   return .around
+        case .end:      return .end
+        }
+    }
+
     /// Background color of the in-session alert overlay.
     var alertColor: Color {
         switch self {

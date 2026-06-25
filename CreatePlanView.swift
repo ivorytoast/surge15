@@ -12,11 +12,13 @@ struct CreatePlanView: View {
 
     // Optional preset group (e.g. opened from PlanGroupDetailView)
     var presetGroup: PlanGroup? = nil
+    // Optional plan to edit (nil = create new)
+    var editingPlan: Plan? = nil
 
     // Plan identity
     @State private var planName: String = ""
     @State private var selectedGroup: PlanGroup? = nil
-    @State private var gradientIndex: Int = 0
+    @State private var gradientIndex: Int = Int.random(in: 0..<planGradients.count)
 
     // Draft items
     @State private var draftItems: [DraftItem] = []
@@ -25,6 +27,7 @@ struct CreatePlanView: View {
     @State private var pickerType: WorkoutItemType = .run
     @State private var pickerMeasure: WorkoutMeasure = .meters
     @State private var pickerTarget: Double = 400
+    @State private var pickerTargetSeconds: Double? = nil
 
     @Query(sort: \PlanGroup.name) private var allGroups: [PlanGroup]
 
@@ -33,6 +36,23 @@ struct CreatePlanView: View {
         var workoutType: WorkoutItemType
         var measure: WorkoutMeasure
         var targetValue: Double
+        var targetSeconds: Double? = nil
+    }
+
+    // Pace presets in seconds/km (3:30 – 10:00)
+    private let pacePresets: [Double] = [210, 240, 270, 300, 330, 360, 390, 420, 480, 600]
+    // Duration presets in seconds (0:30 – 10:00)
+    private let durationPresets: [Double] = [30, 45, 60, 90, 120, 150, 180, 240, 300, 420, 600]
+
+    private var targetPresets: [Double] { pickerType == .run ? pacePresets : durationPresets }
+
+    private func targetChipLabel(_ seconds: Double) -> String {
+        if pickerType == .run {
+            let total = Int(seconds.rounded())
+            return String(format: "%d:%02d", total / 60, total % 60)
+        } else {
+            return Formatters.duration(seconds)
+        }
     }
 
     private let lapPresets: [Double]     = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 25, 50]
@@ -57,13 +77,6 @@ struct CreatePlanView: View {
             Form {
                 // MARK: Plan identity
                 Section {
-                    previewCard
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
-
-                    GradientPickerView(selectedIndex: $gradientIndex)
-                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-
                     TextField("Plan Name", text: $planName)
                         .textInputAutocapitalization(.words)
                         .font(.headline)
@@ -134,6 +147,11 @@ struct CreatePlanView: View {
 
                     chipScrollRow
                         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 0))
+
+                    if pickerType != .rest {
+                        targetPickerRow
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 0))
+                    }
                 } header: {
                     Text("Add Exercise")
                 }
@@ -144,7 +162,8 @@ struct CreatePlanView: View {
                         draftItems.append(DraftItem(
                             workoutType: pickerType,
                             measure: pickerMeasure,
-                            targetValue: pickerTarget
+                            targetValue: pickerTarget,
+                            targetSeconds: pickerTargetSeconds
                         ))
                     } label: {
                         Label("Add to Plan", systemImage: "plus.circle.fill")
@@ -166,7 +185,7 @@ struct CreatePlanView: View {
                     }
                 }
             }
-            .navigationTitle("New Plan")
+            .navigationTitle(editingPlan == nil ? "New Plan" : "Edit Plan")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -183,10 +202,60 @@ struct CreatePlanView: View {
                 }
             }
             .onAppear {
-                if selectedGroup == nil, let preset = presetGroup {
+                if let plan = editingPlan {
+                    planName = plan.name
+                    selectedGroup = plan.group
+                    gradientIndex = plan.cardGradientIndex
+                    draftItems = plan.sortedItems.map { item in
+                        DraftItem(workoutType: item.workoutType, measure: item.measure, targetValue: item.targetValue, targetSeconds: item.targetSeconds)
+                    }
+                } else if selectedGroup == nil, let preset = presetGroup {
                     selectedGroup = preset
                 }
             }
+            .onChange(of: pickerType) { _, _ in pickerTargetSeconds = nil }
+        }
+    }
+
+    // MARK: - Target picker row
+
+    private var targetPickerRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(pickerType == .run ? "Pace target (optional)" : "Time target (optional)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    Button { pickerTargetSeconds = nil } label: {
+                        Text("Off")
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 14).padding(.vertical, 8)
+                            .background(pickerTargetSeconds == nil ? Color.blue : Color(.secondarySystemFill), in: Capsule())
+                            .foregroundStyle(pickerTargetSeconds == nil ? .white : .primary)
+                    }
+                    .buttonStyle(.plain)
+                    ForEach(targetPresets, id: \.self) { seconds in
+                        Button { pickerTargetSeconds = seconds } label: {
+                            Text(targetChipLabel(seconds))
+                                .font(.subheadline.weight(.semibold))
+                                .padding(.horizontal, 14).padding(.vertical, 8)
+                                .background(pickerTargetSeconds == seconds ? Color.blue : Color(.secondarySystemFill), in: Capsule())
+                                .foregroundStyle(pickerTargetSeconds == seconds ? .white : .primary)
+                        }
+                        .buttonStyle(.plain)
+                        .animation(.easeInOut(duration: 0.12), value: pickerTargetSeconds == seconds)
+                    }
+                }
+                .padding(.vertical, 4)
+                .padding(.leading, 2)
+            }
+            .mask(
+                HStack(spacing: 0) {
+                    Rectangle()
+                    LinearGradient(colors: [.white, .clear], startPoint: .leading, endPoint: .trailing)
+                        .frame(width: 40)
+                }
+            )
         }
     }
 
@@ -277,6 +346,13 @@ struct CreatePlanView: View {
                 Text(item.workoutType.displayName).font(.headline)
                 Text(item.measure.formatted(item.targetValue))
                     .font(.caption).foregroundStyle(.secondary)
+                if let ts = item.targetSeconds {
+                    Text(item.workoutType == .run
+                         ? "Target: \(targetChipLabel(ts))/km"
+                         : "Target: \(Formatters.duration(ts))")
+                        .font(.caption2)
+                        .foregroundStyle(.blue.opacity(0.8))
+                }
             }
         }
     }
@@ -347,21 +423,39 @@ struct CreatePlanView: View {
     private func save() {
         let name = planName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
-        let plan = Plan(name: name)
-        plan.group = selectedGroup
-        plan.cardGradientIndex = gradientIndex
-        for (i, draft) in draftItems.enumerated() {
-            let item = PlanItem(
-                order: i,
-                workoutType: draft.workoutType,
-                measure: draft.measure,
-                targetValue: draft.targetValue
-            )
-            plan.items.append(item)
+
+        if let plan = editingPlan {
+            plan.name = name
+            plan.group = selectedGroup
+            plan.cardGradientIndex = gradientIndex
+            for item in plan.items { modelContext.delete(item) }
+            for (i, draft) in draftItems.enumerated() {
+                let item = PlanItem(
+                    order: i,
+                    workoutType: draft.workoutType,
+                    measure: draft.measure,
+                    targetValue: draft.targetValue,
+                    targetSeconds: draft.targetSeconds
+                )
+                plan.items.append(item)
+            }
+        } else {
+            let plan = Plan(name: name)
+            plan.group = selectedGroup
+            plan.cardGradientIndex = gradientIndex
+            for (i, draft) in draftItems.enumerated() {
+                let item = PlanItem(
+                    order: i,
+                    workoutType: draft.workoutType,
+                    measure: draft.measure,
+                    targetValue: draft.targetValue,
+                    targetSeconds: draft.targetSeconds
+                )
+                plan.items.append(item)
+            }
+            modelContext.insert(plan)
+            selectedGroup?.plans.append(plan)
         }
-        modelContext.insert(plan)
-        // Also append to group's plans array so the relationship is live immediately
-        selectedGroup?.plans.append(plan)
         dismiss()
     }
 }

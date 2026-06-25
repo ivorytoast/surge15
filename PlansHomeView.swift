@@ -221,6 +221,8 @@ struct PlansHomeView: View {
     @State private var deletingGroup: PlanGroup? = nil
 
     // Plan rename/delete/move (triggered from long-press on plan row)
+    @State private var editingPlan: Plan? = nil
+    @State private var recoloringPlan: Plan? = nil
     @State private var renamingPlan: Plan? = nil
     @State private var planRenameText = ""
     @State private var movingPlan: Plan? = nil
@@ -305,6 +307,12 @@ struct PlansHomeView: View {
             }
             .sheet(isPresented: $showingCreatePlan) {
                 CreatePlanView()
+            }
+            .sheet(item: $editingPlan) { plan in
+                CreatePlanView(editingPlan: plan)
+            }
+            .sheet(item: $recoloringPlan) { plan in
+                PlanColorPickerSheet(plan: plan)
             }
             .sheet(item: $movingPlan) { plan in
                 MovePlanToGroupSheet(plan: plan, groups: groups)
@@ -456,6 +464,12 @@ struct PlansHomeView: View {
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
+                        Button { editingPlan = plan } label: {
+                            Label("Edit Plan", systemImage: "square.and.pencil")
+                        }
+                        Button { recoloringPlan = plan } label: {
+                            Label("Edit Color", systemImage: "paintpalette")
+                        }
                         Button {
                             planRenameText = plan.name
                             renamingPlan = plan
@@ -691,6 +705,8 @@ struct FavoritePlansView: View {
     @Query(sort: \Plan.createdAt, order: .reverse) private var allPlans: [Plan]
     @Query(sort: \PlanGroup.createdAt, order: .reverse) private var groups: [PlanGroup]
 
+    @State private var editingPlan: Plan? = nil
+    @State private var recoloringPlan: Plan? = nil
     @State private var renamingPlan: Plan? = nil
     @State private var planRenameText = ""
     @State private var movingPlan: Plan? = nil
@@ -726,6 +742,12 @@ struct FavoritePlansView: View {
                             }
                             .buttonStyle(.plain)
                             .contextMenu {
+                                Button { editingPlan = plan } label: {
+                                    Label("Edit Plan", systemImage: "square.and.pencil")
+                                }
+                                Button { recoloringPlan = plan } label: {
+                                    Label("Edit Color", systemImage: "paintpalette")
+                                }
                                 Button {
                                     planRenameText = plan.name
                                     renamingPlan = plan
@@ -756,6 +778,12 @@ struct FavoritePlansView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: Plan.self) { plan in
             PlanDetailView(plan: plan)
+        }
+        .sheet(item: $editingPlan) { plan in
+            CreatePlanView(editingPlan: plan)
+        }
+        .sheet(item: $recoloringPlan) { plan in
+            PlanColorPickerSheet(plan: plan)
         }
         .sheet(item: $movingPlan) { plan in
             MovePlanToGroupSheet(plan: plan, groups: groups)
@@ -825,6 +853,36 @@ struct FavoritePlansView: View {
                     .padding(.leading, 64)
             }
         }
+    }
+}
+
+// MARK: - Plan Color Picker Sheet
+
+struct PlanColorPickerSheet: View {
+    @Bindable var plan: Plan
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 28) {
+                PlanCardView(plan: plan, featured: true)
+                    .frame(maxWidth: 260)
+                    .padding(.top, 8)
+
+                GradientPickerView(selectedIndex: $plan.cardGradientIndex)
+                    .padding(.horizontal)
+
+                Spacer()
+            }
+            .navigationTitle("Edit Color")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
 

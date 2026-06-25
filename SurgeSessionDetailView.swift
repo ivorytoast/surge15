@@ -64,6 +64,7 @@ private struct DirectRunDestination: Identifiable, Hashable {
     let route: Route
     let mode: SessionMode
     let target: Double
+    let targetPaceSecondsPerKm: Double?
 
     static func == (lhs: DirectRunDestination, rhs: DirectRunDestination) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
@@ -155,25 +156,84 @@ struct SurgeSessionDetailView: View {
     private var isLive: Bool { surgeSession.isCurrent }
 
     var body: some View {
+        coreView
+            .sheet(item: $recordingExercise, onDismiss: {
+                let snapshot = sessionCountSnapshot
+                recordingMeasure = nil
+                recordingTarget = nil
+                if autoModeEnabled && surgeSession.sessions.count > snapshot {
+                    handleAutoModeExerciseComplete()
+                }
+            }) { type in
+                ExerciseRecordingView(workoutType: type, measure: recordingMeasure,
+                                      targetValue: recordingTarget, surgeSession: surgeSession)
+            }
+            .sheet(item: $recordingCustomRequest, onDismiss: {
+                let snapshot = sessionCountSnapshot
+                if autoModeEnabled && surgeSession.sessions.count > snapshot {
+                    handleAutoModeExerciseComplete()
+                }
+            }) { req in
+                ExerciseRecordingView(customName: req.name, customIcon: req.icon,
+                                      measures: req.measures, targetValue: req.targetValue,
+                                      surgeSession: surgeSession)
+            }
+            .sheet(item: $viewingSession) { session in
+                NavigationStack { SessionDetailView(session: session) }
+            }
+            .sheet(isPresented: $showingReorder) { reorderSheet }
+            .navigationDestination(item: $routeForSetup) { route in
+                RouteRunSetupView(route: route, presetMeasure: routeRunMeasure, presetTarget: routeRunTarget)
+            }
+            .navigationDestination(item: $directRunDestination) { dest in
+                SessionRecordingView(route: dest.route, initialMode: dest.mode, initialTarget: dest.target,
+                                     targetPaceSecondsPerKm: dest.targetPaceSecondsPerKm)
+            }
+            .alert("End this workout?", isPresented: $showingEndConfirm) {
+                Button("Cancel", role: .cancel) { }
+                Button("End", role: .destructive) { surgeSession.endedAt = Date(); dismiss() }
+            } message: {
+                Text("You can still view this workout in the calendar.")
+            }
+            .alert("Enable Auto Mode?", isPresented: $showingAutoModeConfirm) {
+                Button("Let's Go!") {
+                    autoModeEnabled = true
+                    if currentItemIndex != nil || firstActivePending != nil { autoStartNextItem() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Auto Mode will immediately start your first exercise and automatically begin each following one after a \(autoRestDuration)s rest. Tap the timer to skip rest early.")
+            }
+            .onChange(of: autoModeEnabled) { _, enabled in if !enabled { cancelAutoRest() } }
+            .onChange(of: routeForSetup == nil) { wasNil, isNil in
+                if !wasNil && isNil && autoModeEnabled && surgeSession.sessions.count > sessionCountSnapshot {
+                    handleAutoModeExerciseComplete()
+                }
+            }
+            .onChange(of: directRunDestination == nil) { wasNil, isNil in
+                if !wasNil && isNil && autoModeEnabled && surgeSession.sessions.count > sessionCountSnapshot {
+                    handleAutoModeExerciseComplete()
+                }
+            }
+            .onDisappear { autoRestTask?.cancel() }
+    }
+
+    private var coreView: some View {
         ScrollView {
             VStack(spacing: 20) {
                 workoutTimeline
                     .padding(.horizontal)
                     .padding(.top, isLive ? 8 : 0)
-
                 if !isLive, let total = surgeSession.totalDurationSeconds {
-                    summaryCard(total: total)
-                        .padding(.horizontal)
+                    summaryCard(total: total).padding(.horizontal)
                 }
             }
             .padding(.bottom, isLive ? 100 : 24)
         }
         .overlay {
             if showWorkoutComplete {
-                WorkoutCompleteOverlay {
-                    withAnimation { showWorkoutComplete = false }
-                }
-                .transition(.opacity)
+                WorkoutCompleteOverlay { withAnimation { showWorkoutComplete = false } }
+                    .transition(.opacity)
             }
         }
         .background(Color(.systemGroupedBackground))
@@ -185,15 +245,11 @@ struct SurgeSessionDetailView: View {
             ToolbarItem(placement: .principal) { principalTitle }
             if isLive {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showingAddExercise = true } label: {
-                        Image(systemName: "plus")
-                    }
+                    Button { showingAddExercise = true } label: { Image(systemName: "plus") }
                 }
             }
         }
-        .safeAreaInset(edge: .bottom) {
-            if isLive { actionBar }
-        }
+        .safeAreaInset(edge: .bottom) { if isLive { actionBar } }
         .onAppear {
             if timelineOrder.isEmpty, let plan = surgeSession.plan {
                 timelineOrder = plan.sortedItems.map(\.id)
@@ -206,10 +262,7 @@ struct SurgeSessionDetailView: View {
             }
         }
         .sheet(isPresented: $showingAddExercise, onDismiss: {
-            if let type = pendingConfigType {
-                configuringExercise = type
-                pendingConfigType = nil
-            }
+            if let type = pendingConfigType { configuringExercise = type; pendingConfigType = nil }
         }) {
             AddExerciseSheet(
                 routeName: surgeSession.route?.name,
@@ -218,16 +271,11 @@ struct SurgeSessionDetailView: View {
                     pendingAdHocItems.append(PendingExercise(type: .run, measure: .laps, targetValue: 1))
                     showingAddExercise = false
                 },
-                onSelectBuiltin: { type in
-                    pendingConfigType = type
-                    showingAddExercise = false
-                },
+                onSelectBuiltin: { type in pendingConfigType = type; showingAddExercise = false },
                 onSelectCustom: { exercise in
-                    pendingAdHocItems.append(PendingExercise(
-                        customName: exercise.name,
-                        customIcon: exercise.iconName,
-                        measures: exercise.measures
-                    ))
+                    pendingAdHocItems.append(PendingExercise(customName: exercise.name,
+                                                             customIcon: exercise.iconName,
+                                                             measures: exercise.measures))
                     showingAddExercise = false
                 }
             )
@@ -237,86 +285,6 @@ struct SurgeSessionDetailView: View {
                 pendingAdHocItems.append(PendingExercise(type: type, measure: measure, targetValue: value))
             }
         }
-        .sheet(item: $recordingExercise, onDismiss: {
-            let snapshot = sessionCountSnapshot
-            recordingMeasure = nil
-            recordingTarget = nil
-            if autoModeEnabled && surgeSession.sessions.count > snapshot {
-                handleAutoModeExerciseComplete()
-            }
-        }) { type in
-            ExerciseRecordingView(
-                workoutType: type,
-                measure: recordingMeasure,
-                targetValue: recordingTarget,
-                surgeSession: surgeSession
-            )
-        }
-        .sheet(item: $recordingCustomRequest, onDismiss: {
-            let snapshot = sessionCountSnapshot
-            if autoModeEnabled && surgeSession.sessions.count > snapshot {
-                handleAutoModeExerciseComplete()
-            }
-        }) { req in
-            ExerciseRecordingView(
-                customName: req.name,
-                customIcon: req.icon,
-                measures: req.measures,
-                targetValue: req.targetValue,
-                surgeSession: surgeSession
-            )
-        }
-        .sheet(item: $viewingSession) { session in
-            NavigationStack { SessionDetailView(session: session) }
-        }
-        .sheet(isPresented: $showingReorder) {
-            let frozen = orderedPlanItems.prefix(frozenCount).map { ReorderEntry.planItem($0) }
-            ReorderSheet(
-                frozenEntries: Array(frozen),
-                mutableEntries: mutableFutureEntries,
-                onDone: applyReorder
-            )
-        }
-        .navigationDestination(item: $routeForSetup) { route in
-            RouteRunSetupView(route: route, presetMeasure: routeRunMeasure, presetTarget: routeRunTarget)
-        }
-        .navigationDestination(item: $directRunDestination) { dest in
-            SessionRecordingView(route: dest.route, initialMode: dest.mode, initialTarget: dest.target)
-        }
-        .alert("End this workout?", isPresented: $showingEndConfirm) {
-            Button("Cancel", role: .cancel) { }
-            Button("End", role: .destructive) {
-                surgeSession.endedAt = Date()
-                dismiss()
-            }
-        } message: {
-            Text("You can still view this workout in the calendar.")
-        }
-        .alert("Enable Auto Mode?", isPresented: $showingAutoModeConfirm) {
-            Button("Let's Go!") {
-                autoModeEnabled = true
-                if currentItemIndex != nil || firstActivePending != nil {
-                    autoStartNextItem()
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Auto Mode will immediately start your first exercise and automatically begin each following one after a \(autoRestDuration)s rest. Tap the timer to skip rest early.")
-        }
-        .onChange(of: autoModeEnabled) { _, enabled in
-            if !enabled { cancelAutoRest() }
-        }
-        .onChange(of: routeForSetup == nil) { wasNil, isNil in
-            if !wasNil && isNil && autoModeEnabled && surgeSession.sessions.count > sessionCountSnapshot {
-                handleAutoModeExerciseComplete()
-            }
-        }
-        .onChange(of: directRunDestination == nil) { wasNil, isNil in
-            if !wasNil && isNil && autoModeEnabled && surgeSession.sessions.count > sessionCountSnapshot {
-                handleAutoModeExerciseComplete()
-            }
-        }
-        .onDisappear { autoRestTask?.cancel() }
     }
 
     // MARK: - Elapsed time & title color
@@ -459,6 +427,15 @@ struct SurgeSessionDetailView: View {
         }
     }
 
+    private var reorderSheet: some View {
+        let frozenEntries: [ReorderEntry] = orderedPlanItems.prefix(frozenCount).map { ReorderEntry.planItem($0) }
+        return ReorderSheet(
+            frozenEntries: frozenEntries,
+            mutableEntries: mutableFutureEntries,
+            onDone: applyReorder
+        )
+    }
+
     private var emptyTimelineState: some View {
         HStack(spacing: 12) {
             Image(systemName: "plus.circle")
@@ -506,6 +483,7 @@ struct SurgeSessionDetailView: View {
                     Text(resultText(s))
                         .font(.caption)
                         .foregroundStyle(.green)
+                    paceVsTargetLine(item: item, session: s)
                 } else if skipped {
                     Text("Skipped")
                         .font(.caption)
@@ -514,6 +492,13 @@ struct SurgeSessionDetailView: View {
                     Text(item.displayTarget)
                         .font(.caption)
                         .foregroundStyle(isCurrent ? Color.primary.opacity(0.6) : Color.secondary)
+                    if let ts = item.targetSeconds {
+                        Text(item.workoutType == .run
+                             ? "Target: \(paceLabel(ts))/km"
+                             : "Target: \(Formatters.duration(ts))")
+                            .font(.caption2)
+                            .foregroundStyle(.blue.opacity(0.8))
+                    }
                 }
 
                 if done, let s = matched {
@@ -916,9 +901,11 @@ struct SurgeSessionDetailView: View {
         cancelAutoRest()
         sessionCountSnapshot = surgeSession.sessions.count
         if item.workoutType == .run, let route = surgeSession.route {
-            // Plan items already specify the target — go directly to GPS recording
             let mode: SessionMode = (item.measure == .meters || item.measure == .yards) ? .distance : .laps
-            directRunDestination = DirectRunDestination(route: route, mode: mode, target: item.targetValue)
+            directRunDestination = DirectRunDestination(
+                route: route, mode: mode, target: item.targetValue,
+                targetPaceSecondsPerKm: item.targetSeconds
+            )
         } else {
             recordingMeasure = item.measure
             recordingTarget = item.targetValue
@@ -959,9 +946,66 @@ struct SurgeSessionDetailView: View {
     private func resultText(_ session: Session) -> String {
         var parts: [String] = []
         if let duration = session.durationSeconds { parts.append(Formatters.duration(duration)) }
-        if session.distanceMeters > 0 { parts.append(Formatters.distance(session.distanceMeters)) }
-        else if session.targetValue > 0 { parts.append(session.displayTarget) }
+        if session.distanceMeters > 0 {
+            parts.append(Formatters.distance(session.distanceMeters))
+            if session.workoutType == .run, let pace = session.paceSecondsPerKilometer {
+                parts.append("\(paceLabel(pace))/km")
+            }
+        } else if session.targetValue > 0 { parts.append(session.displayTarget) }
         return parts.isEmpty ? "—" : parts.joined(separator: " · ")
+    }
+
+    @ViewBuilder
+    private func paceVsTargetLine(item: PlanItem, session: Session) -> some View {
+        if item.workoutType == .run {
+            if let targetPace = item.targetSeconds {
+                if let actualPace = session.paceSecondsPerKilometer {
+                    let met = actualPace <= targetPace
+                    HStack(spacing: 4) {
+                        Image(systemName: met ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            .foregroundStyle(met ? .green : .red)
+                        Text(met ? "Beat \(paceLabel(targetPace))/km target" : "Missed \(paceLabel(targetPace))/km target")
+                            .foregroundStyle(met ? .green : .red)
+                    }
+                    .font(.caption2)
+                } else {
+                    // Target was set but GPS distance too short to compute pace
+                    Text("Target \(paceLabel(targetPace))/km · pace unavailable")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Text("No Pace Target")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        } else {
+            if let targetSec = item.targetSeconds {
+                if let duration = session.durationSeconds {
+                    let met = duration <= targetSec
+                    HStack(spacing: 4) {
+                        Image(systemName: met ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            .foregroundStyle(met ? .green : .red)
+                        Text(met ? "Beat \(Formatters.duration(targetSec)) target" : "Missed \(Formatters.duration(targetSec)) target")
+                            .foregroundStyle(met ? .green : .red)
+                    }
+                    .font(.caption2)
+                } else {
+                    Text("Target \(Formatters.duration(targetSec)) · time unavailable")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Text("No Time Target")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func paceLabel(_ secondsPerKm: Double) -> String {
+        let total = Int(secondsPerKm.rounded())
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 
     // MARK: - Auto mode

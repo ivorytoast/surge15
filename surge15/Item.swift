@@ -45,6 +45,10 @@ final class Route {
         sortedDefinitionPoints.first?.coordinate
     }
 
+    var endCoordinate: CLLocationCoordinate2D? {
+        sortedDefinitionPoints.last?.coordinate
+    }
+
     /// Total lap distance. Uses segments when present; otherwise falls back to the
     /// raw GPS-trace length (legacy single-segment routes).
     var distanceMeters: Double {
@@ -284,18 +288,22 @@ final class PlanItem {
     var workoutType: WorkoutItemType
     var measure: WorkoutMeasure
     var targetValue: Double
+    /// Optional performance target. For runs: pace in seconds/km. For all other exercises: total duration in seconds.
+    var targetSeconds: Double? = nil
     var plan: Plan?
 
     init(
         order: Int,
         workoutType: WorkoutItemType = .run,
         measure: WorkoutMeasure = .meters,
-        targetValue: Double = 400
+        targetValue: Double = 400,
+        targetSeconds: Double? = nil
     ) {
         self.order = order
         self.workoutType = workoutType
         self.measure = measure
         self.targetValue = targetValue
+        self.targetSeconds = targetSeconds
     }
 
     var displayTarget: String { measure.formatted(targetValue) }

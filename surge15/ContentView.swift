@@ -1163,7 +1163,7 @@ struct CalendarHomeView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(surge.createdAt.formatted(date: .omitted, time: .shortened))
                     .font(.system(size: 17, weight: .semibold).monospacedDigit())
-                Text(surge.totalDurationSeconds.map(humanDuration) ?? "—")
+                Text(surge.totalDurationSeconds.map { Formatters.duration($0) } ?? "—")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -1199,16 +1199,6 @@ struct CalendarHomeView: View {
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
-    }
-
-    private func humanDuration(_ seconds: TimeInterval) -> String {
-        let total = Int(seconds.rounded())
-        let h = total / 3600
-        let m = (total % 3600) / 60
-        if h > 0 && m > 0 { return "\(h) hr \(m) min" }
-        if h > 0 { return "\(h) hr" }
-        if m > 0 { return "\(m) min" }
-        return "< 1 min"
     }
 
     private static let emptySessionQuotes: [String] = [
