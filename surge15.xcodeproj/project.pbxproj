@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		955578752FE9B61400C6F287 /* RouteSmoothing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955578742FE9B61400C6F287 /* RouteSmoothing.swift */; };
-		955578772FE9B62800C6F287 /* RouteDebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955578762FE9B62800C6F287 /* RouteDebugView.swift */; };
 		955578792FE9D5F900C6F287 /* CreatePlanGroupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955578782FE9D5F900C6F287 /* CreatePlanGroupView.swift */; };
 		9555787B2FE9D60C00C6F287 /* PlanGroupDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9555787A2FE9D60C00C6F287 /* PlanGroupDetailView.swift */; };
 		955E70742FEB0F03000C2792 /* AnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955E70732FEB0F03000C2792 /* AnalyticsView.swift */; };
@@ -48,7 +47,6 @@
 
 /* Begin PBXFileReference section */
 		955578742FE9B61400C6F287 /* RouteSmoothing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteSmoothing.swift; sourceTree = "<group>"; };
-		955578762FE9B62800C6F287 /* RouteDebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteDebugView.swift; sourceTree = "<group>"; };
 		955578782FE9D5F900C6F287 /* CreatePlanGroupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatePlanGroupView.swift; sourceTree = "<group>"; };
 		9555787A2FE9D60C00C6F287 /* PlanGroupDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanGroupDetailView.swift; sourceTree = "<group>"; };
 		955E70732FEB0F03000C2792 /* AnalyticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsView.swift; sourceTree = "<group>"; };
@@ -137,7 +135,6 @@
 				956D4B392FE78A010024B101 /* SegmentDirection.swift */,
 				95DDDB5F2FE87FAA00BE2163 /* ExerciseRecordingView.swift */,
 				955578742FE9B61400C6F287 /* RouteSmoothing.swift */,
-				955578762FE9B62800C6F287 /* RouteDebugView.swift */,
 				955578782FE9D5F900C6F287 /* CreatePlanGroupView.swift */,
 				9555787A2FE9D60C00C6F287 /* PlanGroupDetailView.swift */,
 				955E70732FEB0F03000C2792 /* AnalyticsView.swift */,
@@ -303,7 +300,6 @@
 				956D4B1A2FE737E80024B101 /* LocationTracker.swift in Sources */,
 				956D4B282FE76ECA0024B101 /* RoutePeekSheet.swift in Sources */,
 				956D4B2E2FE776790024B101 /* SurgeSessionDetailView.swift in Sources */,
-				955578772FE9B62800C6F287 /* RouteDebugView.swift in Sources */,
 				955E70742FEB0F03000C2792 /* AnalyticsView.swift in Sources */,
 				956D4B262FE7405C0024B101 /* SessionDetailView.swift in Sources */,
 				95DDDB602FE87FAA00BE2163 /* ExerciseRecordingView.swift in Sources */,

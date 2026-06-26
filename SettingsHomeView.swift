@@ -62,13 +62,6 @@ struct SettingsHomeView: View {
                     Text("Add custom exercises, or hide built-ins you don't use.")
                 }
 
-                Section("Developer") {
-                    NavigationLink {
-                        RouteDebugView()
-                    } label: {
-                        Label("Route Smoothing Debug", systemImage: "slider.horizontal.3")
-                    }
-                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)

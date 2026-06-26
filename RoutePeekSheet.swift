@@ -15,8 +15,8 @@ struct RoutePeekSheet: View {
 
 
     @State private var sessionMode: SessionMode = .laps
-    @State private var targetLaps: Int = 1
-    @State private var targetMeters: Double = 400
+    @State private var targetLaps: Int = 3
+    @State private var targetMeters: Double = 10
 
     private let lapPresets    = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 20, 25, 50, 100]
     private let meterPresets: [Double] = [1, 5, 10, 20, 40, 50, 75, 100, 125, 150, 200, 250,

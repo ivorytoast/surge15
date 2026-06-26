@@ -13,8 +13,6 @@ struct PlanGroupDetailView: View {
 
     @Query(sort: \PlanGroup.createdAt, order: .reverse) private var allGroups: [PlanGroup]
 
-    @State private var showingCreatePlan = false
-
     // Plan actions (triggered by long-press on plan row)
     @State private var editingPlan: Plan? = nil
     @State private var recoloringPlan: Plan? = nil
@@ -85,26 +83,16 @@ struct PlanGroupDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                HStack(spacing: 16) {
-                    Button {
-                        group.isFavorite.toggle()
-                    } label: {
-                        Image(systemName: group.isFavorite ? "heart.fill" : "heart")
-                            .foregroundStyle(group.isFavorite ? .red : .secondary)
-                    }
-                    Button {
-                        showingCreatePlan = true
-                    } label: {
-                        Image(systemName: "plus")
-                    }
+                Button {
+                    group.isFavorite.toggle()
+                } label: {
+                    Image(systemName: group.isFavorite ? "heart.fill" : "heart")
+                        .foregroundStyle(group.isFavorite ? .red : .secondary)
                 }
             }
         }
         .navigationDestination(for: Plan.self) { plan in
             PlanDetailView(plan: plan)
-        }
-        .sheet(isPresented: $showingCreatePlan) {
-            CreatePlanView(presetGroup: group)
         }
         .sheet(item: $editingPlan) { plan in
             CreatePlanView(editingPlan: plan)
@@ -189,27 +177,11 @@ struct PlanGroupDetailView: View {
     // MARK: - Empty state
 
     private var emptyGroupState: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "doc.badge.plus")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-            Text("No plans in this group yet.")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-            Button {
-                showingCreatePlan = true
-            } label: {
-                Label("Add First Plan", systemImage: "plus.circle.fill")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
-                    .background(Color.blue, in: Capsule())
-            }
-            .buttonStyle(.plain)
+        ContentUnavailableView {
+            Label("No Plans Yet", systemImage: "doc.badge.plus")
+        } description: {
+            Text("Add plans to this group from the Plans tab.")
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 48)
     }
 }
 

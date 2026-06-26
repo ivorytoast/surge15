@@ -24,15 +24,19 @@ struct CreatePlanGroupView: View {
                     previewCard
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
+                }
 
-                    GradientPickerView(selectedIndex: $gradientIndex)
-                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-
+                Section("Name") {
                     TextField("Group Name", text: $groupName)
                         .textInputAutocapitalization(.words)
                         .font(.headline)
+                }
+
+                Section {
+                    GradientPickerView(selectedIndex: $gradientIndex)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 } header: {
-                    Text("Group Details")
+                    Text("Color")
                 } footer: {
                     Text("You can add plans to this group later.")
                 }

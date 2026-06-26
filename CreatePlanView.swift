@@ -10,23 +10,18 @@ struct CreatePlanView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    // Optional preset group (e.g. opened from PlanGroupDetailView)
     var presetGroup: PlanGroup? = nil
-    // Optional plan to edit (nil = create new)
     var editingPlan: Plan? = nil
 
-    // Plan identity
     @State private var planName: String = ""
     @State private var selectedGroup: PlanGroup? = nil
     @State private var gradientIndex: Int = Int.random(in: 0..<planGradients.count)
-
-    // Draft items
     @State private var draftItems: [DraftItem] = []
+    @State private var showingDetails = false
 
-    // Exercise picker state
     @State private var pickerType: WorkoutItemType = .run
     @State private var pickerMeasure: WorkoutMeasure = .meters
-    @State private var pickerTarget: Double = 400
+    @State private var pickerTarget: Double = 10
     @State private var pickerTargetSeconds: Double? = nil
 
     @Query(sort: \PlanGroup.name) private var allGroups: [PlanGroup]
@@ -39,28 +34,16 @@ struct CreatePlanView: View {
         var targetSeconds: Double? = nil
     }
 
-    // Pace presets in seconds/km (3:30 – 10:00)
     private let pacePresets: [Double] = [210, 240, 270, 300, 330, 360, 390, 420, 480, 600]
-    // Duration presets in seconds (0:30 – 10:00)
     private let durationPresets: [Double] = [30, 45, 60, 90, 120, 150, 180, 240, 300, 420, 600]
-
     private var targetPresets: [Double] { pickerType == .run ? pacePresets : durationPresets }
 
-    private func targetChipLabel(_ seconds: Double) -> String {
-        if pickerType == .run {
-            let total = Int(seconds.rounded())
-            return String(format: "%d:%02d", total / 60, total % 60)
-        } else {
-            return Formatters.duration(seconds)
-        }
-    }
-
-    private let lapPresets: [Double]     = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 25, 50]
-    private let meterPresets: [Double]   = [1, 5, 10, 20, 40, 50, 75, 100, 125, 150, 200, 250,
-                                            300, 350, 400, 450, 500, 550, 600, 650, 700, 750,
-                                            800, 850, 900, 950, 1000]
-    private let repPresets: [Double]     = [5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100]
-    private let minutePresets: [Double]  = [0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 7, 10, 15, 20]
+    private let lapPresets: [Double]    = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 25, 50]
+    private let meterPresets: [Double]  = [1, 5, 10, 20, 40, 50, 75, 100, 125, 150, 200, 250,
+                                           300, 350, 400, 450, 500, 550, 600, 650, 700, 750,
+                                           800, 850, 900, 950, 1000]
+    private let repPresets: [Double]    = [5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100]
+    private let minutePresets: [Double] = [0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 7, 10, 15, 20]
 
     private let typeColumns = [
         GridItem(.flexible(), spacing: 8),
@@ -68,68 +51,11 @@ struct CreatePlanView: View {
         GridItem(.flexible(), spacing: 8),
     ]
 
-    private var isValid: Bool {
-        !planName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !draftItems.isEmpty
-    }
-
     var body: some View {
         NavigationStack {
             Form {
-                // MARK: Plan identity
-                Section {
-                    TextField("Plan Name", text: $planName)
-                        .textInputAutocapitalization(.words)
-                        .font(.headline)
-
-                    if !allGroups.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Group")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    // No group option
-                                    Button {
-                                        selectedGroup = nil
-                                    } label: {
-                                        Text("None")
-                                            .font(.caption.weight(.semibold))
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                            .background(selectedGroup == nil ? Color.blue : Color(.secondarySystemFill), in: Capsule())
-                                            .foregroundStyle(selectedGroup == nil ? .white : .primary)
-                                    }
-                                    .buttonStyle(.plain)
-
-                                    ForEach(allGroups) { grp in
-                                        Button {
-                                            selectedGroup = grp
-                                        } label: {
-                                            HStack(spacing: 5) {
-                                                Circle()
-                                                    .fill(planGradients[grp.cardGradientIndex % planGradients.count].linear)
-                                                    .frame(width: 10, height: 10)
-                                                Text(grp.name)
-                                                    .font(.caption.weight(.semibold))
-                                            }
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                            .background(selectedGroup?.id == grp.id ? Color.blue : Color(.secondarySystemFill), in: Capsule())
-                                            .foregroundStyle(selectedGroup?.id == grp.id ? .white : .primary)
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                                .padding(.bottom, 2)
-                            }
-                        }
-                    }
-                } header: {
-                    Text("Plan Details")
-                }
-
                 // MARK: Exercise picker
-                Section {
+                Section("Add Exercise") {
                     typeChipRow
                         .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
 
@@ -152,8 +78,6 @@ struct CreatePlanView: View {
                         targetPickerRow
                             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 0))
                     }
-                } header: {
-                    Text("Add Exercise")
                 }
 
                 // MARK: Add button
@@ -172,7 +96,7 @@ struct CreatePlanView: View {
                     }
                 }
 
-                // MARK: Draft items
+                // MARK: Draft list
                 if !draftItems.isEmpty {
                     Section {
                         ForEach(draftItems) { item in
@@ -192,22 +116,21 @@ struct CreatePlanView: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }
-                        .disabled(!isValid)
+                    Button("Save") { showingDetails = true }
+                        .disabled(draftItems.isEmpty)
                 }
-                if !draftItems.isEmpty {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        EditButton()
-                    }
-                }
+            }
+            .sheet(isPresented: $showingDetails) {
+                planDetailsSheet
             }
             .onAppear {
                 if let plan = editingPlan {
                     planName = plan.name
                     selectedGroup = plan.group
                     gradientIndex = plan.cardGradientIndex
-                    draftItems = plan.sortedItems.map { item in
-                        DraftItem(workoutType: item.workoutType, measure: item.measure, targetValue: item.targetValue, targetSeconds: item.targetSeconds)
+                    draftItems = plan.sortedItems.map {
+                        DraftItem(workoutType: $0.workoutType, measure: $0.measure,
+                                  targetValue: $0.targetValue, targetSeconds: $0.targetSeconds)
                     }
                 } else if selectedGroup == nil, let preset = presetGroup {
                     selectedGroup = preset
@@ -215,6 +138,73 @@ struct CreatePlanView: View {
             }
             .onChange(of: pickerType) { _, _ in pickerTargetSeconds = nil }
         }
+    }
+
+    // MARK: - Plan Details sheet
+
+    private var planDetailsSheet: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Plan Name", text: $planName)
+                        .textInputAutocapitalization(.words)
+                        .font(.headline)
+                } header: {
+                    Text("Plan Details")
+                }
+
+                if !allGroups.isEmpty {
+                    Section("Group") {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                Button {
+                                    selectedGroup = nil
+                                } label: {
+                                    Text("None")
+                                        .font(.caption.weight(.semibold))
+                                        .padding(.horizontal, 12).padding(.vertical, 6)
+                                        .background(selectedGroup == nil ? Color.blue : Color(.secondarySystemFill), in: Capsule())
+                                        .foregroundStyle(selectedGroup == nil ? .white : .primary)
+                                }
+                                .buttonStyle(.plain)
+
+                                ForEach(allGroups) { grp in
+                                    Button {
+                                        selectedGroup = grp
+                                    } label: {
+                                        HStack(spacing: 5) {
+                                            Circle()
+                                                .fill(planGradients[grp.cardGradientIndex % planGradients.count].linear)
+                                                .frame(width: 10, height: 10)
+                                            Text(grp.name)
+                                                .font(.caption.weight(.semibold))
+                                        }
+                                        .padding(.horizontal, 12).padding(.vertical, 6)
+                                        .background(selectedGroup?.id == grp.id ? Color.blue : Color(.secondarySystemFill), in: Capsule())
+                                        .foregroundStyle(selectedGroup?.id == grp.id ? .white : .primary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.bottom, 2)
+                        }
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    }
+                }
+            }
+            .navigationTitle("Plan Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Back") { showingDetails = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(editingPlan == nil ? "Create" : "Save") { save() }
+                        .disabled(planName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 
     // MARK: - Target picker row
@@ -257,53 +247,6 @@ struct CreatePlanView: View {
                 }
             )
         }
-    }
-
-    // MARK: - Card preview
-
-    private var previewCard: some View {
-        ZStack(alignment: .bottomLeading) {
-            planGradients[gradientIndex % planGradients.count].linear
-
-            LinearGradient(
-                colors: [.clear, .black.opacity(0.35)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            VStack(alignment: .leading, spacing: 6) {
-                Spacer()
-                Text(planName.isEmpty ? "Plan Name" : planName)
-                    .font(.title2.bold())
-                    .foregroundStyle(planName.isEmpty ? .white.opacity(0.4) : .white)
-                    .lineLimit(2)
-
-                HStack(spacing: 5) {
-                    ForEach(draftItems.prefix(5)) { item in
-                        ZStack {
-                            Circle()
-                                .fill(.white.opacity(0.22))
-                                .frame(width: 28, height: 28)
-                            Image(systemName: item.workoutType.systemImage)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(.white)
-                        }
-                    }
-                    if draftItems.isEmpty {
-                        Text("No exercises yet")
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.5))
-                    }
-                }
-            }
-            .padding(14)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 160)
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .animation(.easeInOut(duration: 0.2), value: gradientIndex)
     }
 
     // MARK: - Exercise type grid
@@ -411,10 +354,19 @@ struct CreatePlanView: View {
 
     // MARK: - Helpers
 
+    private func targetChipLabel(_ seconds: Double) -> String {
+        if pickerType == .run {
+            let total = Int(seconds.rounded())
+            return String(format: "%d:%02d", total / 60, total % 60)
+        } else {
+            return Formatters.duration(seconds)
+        }
+    }
+
     private func defaultTarget(for measure: WorkoutMeasure, type: WorkoutItemType) -> Double {
         switch measure {
-        case .meters, .yards: return (type == .run || type == .row) ? 400 : 24
-        case .laps:           return 1
+        case .meters, .yards: return 10
+        case .laps:           return 2
         case .reps:           return 10
         case .minutes:        return 2
         }
@@ -430,28 +382,22 @@ struct CreatePlanView: View {
             plan.cardGradientIndex = gradientIndex
             for item in plan.items { modelContext.delete(item) }
             for (i, draft) in draftItems.enumerated() {
-                let item = PlanItem(
-                    order: i,
-                    workoutType: draft.workoutType,
-                    measure: draft.measure,
-                    targetValue: draft.targetValue,
+                plan.items.append(PlanItem(
+                    order: i, workoutType: draft.workoutType,
+                    measure: draft.measure, targetValue: draft.targetValue,
                     targetSeconds: draft.targetSeconds
-                )
-                plan.items.append(item)
+                ))
             }
         } else {
             let plan = Plan(name: name)
             plan.group = selectedGroup
             plan.cardGradientIndex = gradientIndex
             for (i, draft) in draftItems.enumerated() {
-                let item = PlanItem(
-                    order: i,
-                    workoutType: draft.workoutType,
-                    measure: draft.measure,
-                    targetValue: draft.targetValue,
+                plan.items.append(PlanItem(
+                    order: i, workoutType: draft.workoutType,
+                    measure: draft.measure, targetValue: draft.targetValue,
                     targetSeconds: draft.targetSeconds
-                )
-                plan.items.append(item)
+                ))
             }
             modelContext.insert(plan)
             selectedGroup?.plans.append(plan)

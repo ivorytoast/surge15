@@ -3,6 +3,8 @@ import SwiftData
 import CoreLocation
 import MapKit
 
+extension Route: Favoritable {}
+
 // MARK: - Helpers
 
 enum HomeViewMode: String, CaseIterable, Identifiable {
@@ -252,7 +254,6 @@ struct RoutesHomeView: View {
     // Peek sheet + post-dismiss navigation
     @State private var peekRoute: Route?
     @State private var clusterPeek: RouteClusterSelection?
-    @State private var pendingEdit: Route?
     @State private var pendingPeek: Route?
     @State private var editingRoute: Route?
     @State private var deletingRoute: Route?
@@ -356,15 +357,6 @@ struct RoutesHomeView: View {
     }
 
     // MARK: - Deferred sheet→navigation handoff
-
-    private func handlePeekDismiss() {
-        if goRoute != nil {
-            navigatingToRecording = true
-        } else if let route = pendingEdit {
-            editingRoute = route
-            pendingEdit = nil
-        }
-    }
 
     private func handleClusterDismiss() {
         if let pending = pendingPeek {
@@ -658,14 +650,6 @@ struct RoutesHomeView: View {
 
     private var isLight: Bool { colorScheme == .light }
 
-    // #f5f8fd light ↔ #070a18 deepest navy dark
-    private var pageBackground: Color {
-        isLight ? Color(red: 0.961, green: 0.973, blue: 0.992) : Color(red: 0.027, green: 0.039, blue: 0.094)
-    }
-    // white light ↔ #0e1430 deep navy dark
-    private var listContainerBg: Color {
-        isLight ? .white : Color(red: 0.055, green: 0.078, blue: 0.188)
-    }
     // #dbeafe light ↔ #1e3a8a dark
     private var iconCircleFill: Color {
         isLight ? Color(red: 0.859, green: 0.914, blue: 0.996) : Color(red: 0.118, green: 0.227, blue: 0.541)
@@ -686,80 +670,28 @@ struct RoutesHomeView: View {
     private var chevronColor: Color {
         isLight ? Color(red: 0.761, green: 0.804, blue: 0.894) : Color(red: 0.624, green: 0.690, blue: 0.831)
     }
-    // #2563eb light ↔ #60a5fa dark
-    private var sectionLabelColor: Color {
-        isLight ? Color(red: 0.145, green: 0.388, blue: 0.922) : Color(red: 0.376, green: 0.647, blue: 0.980)
-    }
-    // #bfdbfe light ↔ #1e3a8a dark
-    private var dividerColor: Color {
-        isLight ? Color(red: 0.749, green: 0.859, blue: 0.996) : Color(red: 0.118, green: 0.227, blue: 0.541)
-    }
-
     // MARK: - List mode
 
     private var listHome: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                let suggested = suggestedRoutes
-                let favorites = routes.filter { $0.isFavorite }
-
-                if !suggested.isEmpty {
-                    routeShelf(title: "Suggested Routes", routes: suggested)
-                }
-
-                if !favorites.isEmpty {
-                    routeShelf(title: "Favorites", routes: favorites)
-                }
-
-                if !routes.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        listSectionHeader("All Routes")
-                            .padding(.horizontal)
-                        VStack(spacing: 0) {
-                            ForEach(Array(allRoutesSorted.enumerated()), id: \.element.id) { idx, route in
-                                routeListRow(route: route, isLast: idx == routes.count - 1)
-                            }
-                        }
-                        .background(listContainerBg, in: RoundedRectangle(cornerRadius: 14))
-                        .padding(.horizontal, 16)
-                    }
-                    .padding(.bottom, 24)
-                }
+        HomeTabLayout(
+            scrollTitle: "Closest Routes",
+            scrollItems: suggestedScrollRoutes,
+            listTitle: "All Routes",
+            listItems: routesForLayout
+        ) { route in
+            let dist = userCoordinate.flatMap { user in
+                route.startCoordinate.map { $0.distance(to: user) }
             }
-            .padding(.top, 16)
+            RouteCardView(route: route, distanceAway: dist)
+                .frame(width: 220)
+                .contentShape(Rectangle())
+                .onTapGesture { peekRoute = route }
+        } listRow: { route in
+            routeListRow(route: route)
         }
-        .background(pageBackground.ignoresSafeArea())
     }
 
-    private var suggestedRoutes: [Route] {
-        guard let user = userCoordinate else {
-            return Array(routes.sorted { $0.sessions.count > $1.sessions.count }.prefix(2))
-        }
-        let byDistance = routes.sorted {
-            ($0.startCoordinate?.distance(to: user) ?? .infinity) <
-            ($1.startCoordinate?.distance(to: user) ?? .infinity)
-        }
-        var suggestions: [Route] = []
-        for route in byDistance {
-            if suggestions.count == 2 { break }
-            var merged = false
-            for i in suggestions.indices {
-                guard let c1 = route.startCoordinate,
-                      let c2 = suggestions[i].startCoordinate else { continue }
-                if c1.distance(to: c2) <= 50 {
-                    if route.sessions.count > suggestions[i].sessions.count {
-                        suggestions[i] = route
-                    }
-                    merged = true
-                    break
-                }
-            }
-            if !merged { suggestions.append(route) }
-        }
-        return suggestions
-    }
-
-    private var allRoutesSorted: [Route] {
+    private var routesForLayout: [Route] {
         guard let user = userCoordinate else { return routes }
         return routes.sorted {
             ($0.startCoordinate?.distance(to: user) ?? .infinity) <
@@ -767,43 +699,11 @@ struct RoutesHomeView: View {
         }
     }
 
-    private func routeShelf(title: String, routes: [Route]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            listSectionHeader(title)
-                .padding(.horizontal)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(routes) { route in
-                        routeCardButton(route)
-                            .frame(width: 130)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 2)
-            }
-        }
+    private var suggestedScrollRoutes: [Route] {
+        Array(routesForLayout.prefix(5))
     }
 
-    private func routeCardButton(_ route: Route) -> some View {
-        Button { peekRoute = route } label: { RouteCardView(route: route) }
-            .buttonStyle(.plain)
-            .contextMenu {
-                Button {
-                    route.isFavorite.toggle()
-                } label: {
-                    Label(route.isFavorite ? "Remove from Favorites" : "Add to Favorites",
-                          systemImage: route.isFavorite ? "heart.slash" : "heart")
-                }
-                Button { editingRoute = route } label: {
-                    Label("Edit", systemImage: "pencil")
-                }
-                Button(role: .destructive) { deletingRoute = route } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-            }
-    }
-
-    private func routeListRow(route: Route, isLast: Bool) -> some View {
+    private func routeListRow(route: Route) -> some View {
         Button { peekRoute = route } label: {
             HStack(spacing: 14) {
                 ZStack {
@@ -841,28 +741,6 @@ struct RoutesHomeView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .contextMenu {
-            Button { route.isFavorite.toggle() } label: {
-                Label(route.isFavorite ? "Remove from Favorites" : "Add to Favorites",
-                      systemImage: route.isFavorite ? "heart.slash" : "heart")
-            }
-            Button { editingRoute = route } label: { Label("Edit", systemImage: "pencil") }
-            Button(role: .destructive) { deletingRoute = route } label: { Label("Delete", systemImage: "trash") }
-        }
-        .overlay(alignment: .bottom) {
-            if !isLast {
-                dividerColor
-                    .frame(height: 0.5)
-                    .padding(.leading, 64)
-            }
-        }
-    }
-
-    private func listSectionHeader(_ title: String) -> some View {
-        Text(title)
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(sectionLabelColor)
-            .textCase(.uppercase)
     }
 
     private var userCoordinate: CLLocationCoordinate2D? {
@@ -1546,68 +1424,61 @@ struct SurgeIntentView: View {
     }
 }
 
-// Brand-palette navy → blue gradients for route cards
-private let routeCardGradients: [LinearGradient] = [
-    // #1e3a8a → #2563eb  Navy → Primary Blue
-    LinearGradient(colors: [Color(red: 0.118, green: 0.227, blue: 0.541), Color(red: 0.145, green: 0.388, blue: 0.922)], startPoint: .topLeading, endPoint: .bottomTrailing),
-    // #15235a → #60a5fa  Mid Navy → Light Blue
-    LinearGradient(colors: [Color(red: 0.082, green: 0.137, blue: 0.353), Color(red: 0.376, green: 0.647, blue: 0.980)], startPoint: .topLeading, endPoint: .bottomTrailing),
-    // #0e1430 → #1e3a8a  Deep Navy → Navy
-    LinearGradient(colors: [Color(red: 0.055, green: 0.078, blue: 0.188), Color(red: 0.118, green: 0.227, blue: 0.541)], startPoint: .topLeading, endPoint: .bottomTrailing),
-    // #1e3a8a → #5a8df0  Navy → Softer Blue
-    LinearGradient(colors: [Color(red: 0.118, green: 0.227, blue: 0.541), Color(red: 0.353, green: 0.553, blue: 0.941)], startPoint: .topLeading, endPoint: .bottomTrailing),
-    // #070a18 → #2563eb  Deepest Navy → Primary Blue
-    LinearGradient(colors: [Color(red: 0.027, green: 0.039, blue: 0.094), Color(red: 0.145, green: 0.388, blue: 0.922)], startPoint: .topLeading, endPoint: .bottomTrailing),
-    // #15235a → #93c5fd  Mid Navy → Pale Blue
-    LinearGradient(colors: [Color(red: 0.082, green: 0.137, blue: 0.353), Color(red: 0.576, green: 0.773, blue: 0.992)], startPoint: .topLeading, endPoint: .bottomTrailing),
-]
-
 struct RouteCardView: View {
     let route: Route
+    var distanceAway: Double? = nil
 
-    private var gradient: LinearGradient {
-        routeCardGradients[abs(route.name.hashValue) % routeCardGradients.count]
+    private var routeCoordinates: [CLLocationCoordinate2D] {
+        route.sortedDefinitionPoints.map(\.coordinate)
+    }
+
+    private var previewPosition: MapCameraPosition {
+        guard !routeCoordinates.isEmpty else { return .automatic }
+        let lats = routeCoordinates.map(\.latitude)
+        let lons = routeCoordinates.map(\.longitude)
+        let center = CLLocationCoordinate2D(
+            latitude: (lats.min()! + lats.max()!) / 2,
+            longitude: (lons.min()! + lons.max()!) / 2
+        )
+        let span = MKCoordinateSpan(
+            latitudeDelta: max((lats.max()! - lats.min()!) * 1.6, 0.002),
+            longitudeDelta: max((lons.max()! - lons.min()!) * 1.6, 0.002)
+        )
+        return .region(MKCoordinateRegion(center: center, span: span))
     }
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            gradient
-            LinearGradient(
-                colors: [.clear, .black.opacity(0.35)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Image(systemName: "figure.run")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.85))
-                    Spacer()
-                    if route.isFavorite {
-                        Image(systemName: "heart.fill")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.9))
-                    }
-                }
-                Spacer()
-                Text(route.name)
-                    .font(.headline.bold())
-                    .foregroundStyle(.white)
-                    .lineLimit(2)
-                    .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
-                HStack(spacing: 6) {
-                    Text(Formatters.distance(route.distanceMeters))
-                    Text("·")
-                    Text("\(route.sessions.count) run\(route.sessions.count == 1 ? "" : "s")")
-                }
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.75))
+        VStack(spacing: 0) {
+            Map(initialPosition: previewPosition) {
+                MapPolyline(coordinates: routeCoordinates)
+                    .stroke(.blue, lineWidth: 2.5)
             }
-            .padding(12)
+            .mapStyle(.standard(elevation: .flat))
+            .mapControls { }
+            .disabled(true)
+            .allowsHitTesting(false)
+            .frame(height: 180)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(route.name)
+                    .font(.caption.bold())
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                if let dist = distanceAway {
+                    Text("\(Formatters.distance(dist)) away")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 118)
-        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
+        }
     }
 }
 

@@ -97,9 +97,9 @@ struct ExerciseRecordingView: View {
         let defaultTarget: Double = {
             switch primary {
             case .reps:           return 10
-            case .meters, .yards: return 24
+            case .meters, .yards: return 10
             case .minutes:        return 2
-            case .laps:           return 1
+            case .laps:           return 2
             }
         }()
         _targetValue = State(initialValue: targetValue ?? defaultTarget)
