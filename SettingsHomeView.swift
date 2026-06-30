@@ -62,6 +62,12 @@ struct SettingsHomeView: View {
                     Text("Add custom exercises, or hide built-ins you don't use.")
                 }
 
+                Section("Help") {
+                    Link(destination: URL(string: "https://surge15.app/")!) {
+                        Label("surge15.app", systemImage: "globe")
+                    }
+                }
+
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
