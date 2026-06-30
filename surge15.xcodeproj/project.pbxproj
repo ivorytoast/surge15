@@ -10,7 +10,6 @@
 		955578752FE9B61400C6F287 /* RouteSmoothing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955578742FE9B61400C6F287 /* RouteSmoothing.swift */; };
 		955578792FE9D5F900C6F287 /* CreatePlanGroupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955578782FE9D5F900C6F287 /* CreatePlanGroupView.swift */; };
 		9555787B2FE9D60C00C6F287 /* PlanGroupDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9555787A2FE9D60C00C6F287 /* PlanGroupDetailView.swift */; };
-		955E70742FEB0F03000C2792 /* AnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955E70732FEB0F03000C2792 /* AnalyticsView.swift */; };
 		955E70762FEB2311000C2792 /* ExerciseLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955E70752FEB2311000C2792 /* ExerciseLibraryView.swift */; };
 		956D4B1A2FE737E80024B101 /* LocationTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B192FE737E80024B101 /* LocationTracker.swift */; };
 		956D4B1E2FE73FFF0024B101 /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B1D2FE73FFF0024B101 /* Formatters.swift */; };
@@ -49,7 +48,6 @@
 		955578742FE9B61400C6F287 /* RouteSmoothing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteSmoothing.swift; sourceTree = "<group>"; };
 		955578782FE9D5F900C6F287 /* CreatePlanGroupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatePlanGroupView.swift; sourceTree = "<group>"; };
 		9555787A2FE9D60C00C6F287 /* PlanGroupDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanGroupDetailView.swift; sourceTree = "<group>"; };
-		955E70732FEB0F03000C2792 /* AnalyticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsView.swift; sourceTree = "<group>"; };
 		955E70752FEB2311000C2792 /* ExerciseLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseLibraryView.swift; sourceTree = "<group>"; };
 		956D4AED2FE736230024B101 /* surge15.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = surge15.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		956D4AFC2FE736240024B101 /* surge15Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = surge15Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -137,7 +135,6 @@
 				955578742FE9B61400C6F287 /* RouteSmoothing.swift */,
 				955578782FE9D5F900C6F287 /* CreatePlanGroupView.swift */,
 				9555787A2FE9D60C00C6F287 /* PlanGroupDetailView.swift */,
-				955E70732FEB0F03000C2792 /* AnalyticsView.swift */,
 				955E70752FEB2311000C2792 /* ExerciseLibraryView.swift */,
 			);
 			sourceTree = "<group>";
@@ -300,7 +297,6 @@
 				956D4B1A2FE737E80024B101 /* LocationTracker.swift in Sources */,
 				956D4B282FE76ECA0024B101 /* RoutePeekSheet.swift in Sources */,
 				956D4B2E2FE776790024B101 /* SurgeSessionDetailView.swift in Sources */,
-				955E70742FEB0F03000C2792 /* AnalyticsView.swift in Sources */,
 				956D4B262FE7405C0024B101 /* SessionDetailView.swift in Sources */,
 				95DDDB602FE87FAA00BE2163 /* ExerciseRecordingView.swift in Sources */,
 				956D4B342FE77E6D0024B101 /* PlanDetailView.swift in Sources */,

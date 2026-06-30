@@ -183,7 +183,7 @@ struct ContentView: View {
 
     /// Closure injected via `\.startPlan` environment so `PlanDetailView` can kick off
     /// a workout without knowing about the tab structure.
-    private var startPlanAction: (Plan, Route) -> Void {
+    private var startPlanAction: (Plan, Route?) -> Void {
         { plan, route in
             let surge: SurgeSession
             if let current = SurgeSession.current(in: modelContext) {
@@ -191,7 +191,7 @@ struct ContentView: View {
                     current.plan = plan
                     current.name = plan.name
                 }
-                if current.route == nil {
+                if current.route == nil, let route {
                     current.route = route
                 }
                 surge = current
@@ -227,11 +227,11 @@ struct ContentView: View {
 // MARK: - Environment value for "start this plan"
 
 private struct StartPlanKey: EnvironmentKey {
-    static let defaultValue: ((Plan, Route) -> Void)? = nil
+    static let defaultValue: ((Plan, Route?) -> Void)? = nil
 }
 
 extension EnvironmentValues {
-    var startPlan: ((Plan, Route) -> Void)? {
+    var startPlan: ((Plan, Route?) -> Void)? {
         get { self[StartPlanKey.self] }
         set { self[StartPlanKey.self] = newValue }
     }
@@ -842,46 +842,31 @@ struct SessionsHomeView: View {
 }
 
 struct CalendarHomeView: View {
-    private enum ViewMode { case calendar, analytics }
-
     @Query(sort: \SurgeSession.date, order: .reverse) private var surgeSessions: [SurgeSession]
     @State private var selectedDate: Date = Date()
-    @State private var viewMode: ViewMode = .calendar
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("", selection: $viewMode) {
-                Text("Calendar").tag(ViewMode.calendar)
-                Text("Analytics").tag(ViewMode.analytics)
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
+            CalendarMonthView(selectedDate: $selectedDate, activeDates: activeDates)
+                .padding(.horizontal)
+                .padding(.top, 12)
 
-            if viewMode == .calendar {
-                CalendarMonthView(selectedDate: $selectedDate, activeDates: activeDates)
-                    .padding(.horizontal)
+            Divider()
+                .padding(.top, 8)
 
-                Divider()
-                    .padding(.top, 8)
-
-                if sessionsOnSelectedDate.isEmpty {
-                    emptyDayView
-                } else {
-                    List {
-                        ForEach(sessionsOnSelectedDate.sorted { $0.createdAt < $1.createdAt }) { surge in
-                            NavigationLink(value: surge) {
-                                surgeRow(surge)
-                            }
-                            .listRowSeparator(.hidden)
-                            .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
-                        }
-                    }
-                    .listStyle(.plain)
-                }
+            if sessionsOnSelectedDate.isEmpty {
+                emptyDayView
             } else {
-                AnalyticsView()
+                List {
+                    ForEach(sessionsOnSelectedDate.sorted { $0.createdAt < $1.createdAt }) { surge in
+                        NavigationLink(value: surge) {
+                            surgeRow(surge)
+                        }
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
+                    }
+                }
+                .listStyle(.plain)
             }
         }
     }

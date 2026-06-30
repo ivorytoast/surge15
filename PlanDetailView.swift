@@ -14,8 +14,15 @@ struct PlanDetailView: View {
     @Query(sort: \Route.createdAt, order: .reverse) private var routes: [Route]
 
     @State private var selectedRoute: Route? = nil
+    @State private var noRouteSelected: Bool = false
 
-    private var canStart: Bool { selectedRoute != nil && !plan.items.isEmpty }
+    private var hasRunItems: Bool {
+        plan.items.contains { $0.workoutType == .run }
+    }
+
+    private var canStart: Bool {
+        (selectedRoute != nil || noRouteSelected) && !plan.items.isEmpty
+    }
 
     var body: some View {
         ScrollView {
@@ -23,9 +30,9 @@ struct PlanDetailView: View {
 
                 // Route picker
                 VStack(alignment: .leading, spacing: 10) {
-                    detailSectionHeader("Choose a Route")
+                    detailSectionHeader(hasRunItems ? "Choose a Route" : "Route · Not Required")
 
-                    if routes.isEmpty {
+                    if hasRunItems && routes.isEmpty {
                         HStack(spacing: 10) {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundStyle(.orange)
@@ -39,8 +46,32 @@ struct PlanDetailView: View {
                     } else {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 10) {
+                                if !hasRunItems {
+                                    Button {
+                                        noRouteSelected = true
+                                        selectedRoute = nil
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text("No Route")
+                                                .font(.subheadline.weight(.semibold))
+                                            Text("No runs in this plan")
+                                                .font(.caption)
+                                                .opacity(0.85)
+                                        }
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 10)
+                                        .background(
+                                            noRouteSelected ? Color.blue : Color(.secondarySystemGroupedBackground),
+                                            in: RoundedRectangle(cornerRadius: 12)
+                                        )
+                                        .foregroundStyle(noRouteSelected ? .white : .primary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+
                                 ForEach(routes) { route in
                                     Button {
+                                        noRouteSelected = false
                                         selectedRoute = route
                                     } label: {
                                         VStack(alignment: .leading, spacing: 3) {
@@ -102,6 +133,11 @@ struct PlanDetailView: View {
         .background(Color(.systemGroupedBackground))
         .navigationTitle(plan.name)
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            if !hasRunItems {
+                noRouteSelected = true
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 HStack(spacing: 16) {
@@ -112,9 +148,7 @@ struct PlanDetailView: View {
                             .foregroundStyle(plan.isFavorite ? .red : .secondary)
                     }
                     Button {
-                        if let route = selectedRoute {
-                            startPlan?(plan, route)
-                        }
+                        startPlan?(plan, noRouteSelected ? nil : selectedRoute)
                     } label: {
                         Text("Start")
                             .fontWeight(.semibold)
