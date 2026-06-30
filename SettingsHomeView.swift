@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 let countdownDefaultKey = "countdownDefault"
 let countdownDefaultValue: Int = 5
@@ -14,6 +15,12 @@ let hiddenBuiltinExercisesKey = "hiddenBuiltinExercises"
 struct SettingsHomeView: View {
     @AppStorage(countdownDefaultKey) private var countdownDefault: Int = countdownDefaultValue
     @AppStorage(autoRestDurationKey) private var autoRestDuration: Int = autoRestDurationDefault
+    @Environment(\.modelContext) private var modelContext
+
+    @State private var showingImportRoute = false
+    @State private var importCode: String = ""
+    @State private var isImporting = false
+    @State private var importError: String? = nil
 
     var body: some View {
         NavigationStack {
@@ -62,6 +69,16 @@ struct SettingsHomeView: View {
                     Text("Add custom exercises, or hide built-ins you don't use.")
                 }
 
+                Section("Sharing") {
+                    Button {
+                        importCode = ""
+                        showingImportRoute = true
+                    } label: {
+                        Label("Import Route", systemImage: "arrow.down.circle")
+                            .foregroundStyle(.primary)
+                    }
+                }
+
                 Section("Help") {
                     Link(destination: URL(string: "https://surge15.app/")!) {
                         Label("surge15.app", systemImage: "globe")
@@ -71,7 +88,68 @@ struct SettingsHomeView: View {
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showingImportRoute) {
+                importRouteSheet
+            }
         }
+    }
+
+    private var importRouteSheet: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("e.g. ABTDFYD3", text: $importCode)
+                        .textInputAutocapitalization(.characters)
+                        .autocorrectionDisabled()
+                        .font(.system(.body, design: .monospaced))
+                } header: {
+                    Text("Enter Share Code")
+                } footer: {
+                    Text("Ask the person sharing their route for the 8-character code.")
+                }
+            }
+            .navigationTitle("Import Route")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showingImportRoute = false }
+                        .disabled(isImporting)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    if isImporting {
+                        ProgressView()
+                    } else {
+                        Button("Import") {
+                            isImporting = true
+                            Task {
+                                do {
+                                    _ = try await RouteShareService.importRoute(
+                                        code: importCode,
+                                        into: modelContext
+                                    )
+                                    isImporting = false
+                                    showingImportRoute = false
+                                } catch {
+                                    isImporting = false
+                                    importError = (error as? RouteShareService.ShareError)?.errorDescription
+                                        ?? "Something went wrong."
+                                }
+                            }
+                        }
+                        .disabled(importCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+            }
+            .alert("Import Failed", isPresented: Binding(
+                get: { importError != nil },
+                set: { if !$0 { importError = nil } }
+            )) {
+                Button("OK", role: .cancel) { importError = nil }
+            } message: {
+                Text(importError ?? "")
+            }
+        }
+        .presentationDetents([.medium])
     }
 
     private static func formatRestDuration(_ seconds: Int) -> String {
