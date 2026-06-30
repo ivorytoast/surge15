@@ -1283,6 +1283,16 @@ struct SurgeIntentView: View {
         "Elite mindset. Amateur excuse count: zero.",
         "Later you will say: I'm glad I did that. Trust later you.",
         "You didn't skip. Iconic.",
+        // 20 new ones
+        "Your GPS is locked. Your excuses are not.",
+        "The burpees didn't do anything to you personally. Work it out.",
+        "You opened the app. That's basically a workout.",
+        "Science says exercise is good for you. Scientists don't skip either.",
+        "Your legs: 'please no.' Your brain: 'I know.' You: starting the countdown anyway.",
+        "Every step you take, every lap you make, I'll be logging it.",
+        "Somewhere, a version of you who skipped is really sad right now.",
+        "The only thing standing between you and done is you starting.",
+        "You're not procrastinating. You're loading. Fully loaded. Let's go.",
     ]
 
     private var isLight: Bool { colorScheme == .light }
