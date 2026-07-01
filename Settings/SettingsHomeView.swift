@@ -63,10 +63,40 @@ struct SettingsHomeView: View {
                     } label: {
                         Label("Exercises", systemImage: "dumbbell.fill")
                     }
+                    NavigationLink {
+                        LapPresetsEditorView()
+                    } label: {
+                        Label("Lap Presets", systemImage: "repeat")
+                    }
+                    NavigationLink {
+                        MeterPresetsEditorView()
+                    } label: {
+                        Label("Distance Presets", systemImage: "ruler")
+                    }
+                    NavigationLink {
+                        RepPresetsEditorView()
+                    } label: {
+                        Label("Rep Presets", systemImage: "number")
+                    }
+                    NavigationLink {
+                        MinutePresetsEditorView()
+                    } label: {
+                        Label("Minute Presets", systemImage: "timer")
+                    }
+                    NavigationLink {
+                        PacePresetsEditorView()
+                    } label: {
+                        Label("Pace Presets", systemImage: "speedometer")
+                    }
+                    NavigationLink {
+                        DurationPresetsEditorView()
+                    } label: {
+                        Label("Duration Presets", systemImage: "stopwatch")
+                    }
                 } header: {
                     Text("Library")
                 } footer: {
-                    Text("Add custom exercises, or hide built-ins you don't use.")
+                    Text("Manage exercises and the preset chips shown when building plans and starting routes.")
                 }
 
                 Section("Sharing") {
