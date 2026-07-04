@@ -106,11 +106,11 @@ struct RoutePeekSheet: View {
                 Annotation("", coordinate: start) {
                     ZStack {
                         Circle()
-                            .fill(.white)
+                            .fill(Color(red: 0.145, green: 0.388, blue: 0.922))
                             .frame(width: 18, height: 18)
                             .shadow(radius: 1)
                         Image(systemName: "flag.fill")
-                            .foregroundStyle(.green)
+                            .foregroundStyle(.white)
                             .font(.system(size: 9, weight: .heavy))
                     }
                 }

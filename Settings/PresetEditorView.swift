@@ -116,16 +116,11 @@ struct PacePresetsEditorView: View {
     @AppStorage(pacePresetsKey)  private var storage      = JSONStringArray<Double>(defaultPacePresets)
     @AppStorage(targetPaceKey)   private var defaultPace: Double = defaultPacePresets.first ?? 210
 
-    private func formatPace(_ seconds: Double) -> String {
-        let total = Int(seconds.rounded())
-        return String(format: "%d:%02d /km", total / 60, total % 60)
-    }
-
     var body: some View {
         PresetEditorView(
             title: "Pace Presets",
             presets: Binding(get: { storage.values }, set: { storage.values = $0 }),
-            format: formatPace,
+            format: { Formatters.pace(secondsPerKilometer: $0) },
             defaults: defaultPacePresets,
             validate: { str in
                 guard let n = Double(str), n >= 1 else { return nil }

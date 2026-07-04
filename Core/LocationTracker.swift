@@ -15,6 +15,9 @@ final class LocationTracker: NSObject, CLLocationManagerDelegate {
     var isRecording = false
     var authorizationStatus: CLAuthorizationStatus = .notDetermined
     var recordedLocations: [CLLocation] = []
+    var locationSignalLost: Bool = false
+
+    private var signalLostTask: Task<Void, Never>?
 
     override init() {
         super.init()
@@ -62,6 +65,9 @@ final class LocationTracker: NSObject, CLLocationManagerDelegate {
     // MARK: - CLLocationManagerDelegate
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        signalLostTask?.cancel()
+        signalLostTask = nil
+        locationSignalLost = false
         recordedLocations.append(contentsOf: locations)
     }
 
@@ -75,7 +81,12 @@ final class LocationTracker: NSObject, CLLocationManagerDelegate {
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        // Best-effort: keep recording state, surface error via console for now.
-        print("Location error: \(error.localizedDescription)")
+        guard let clError = error as? CLError, clError.code == .locationUnknown else { return }
+        guard signalLostTask == nil else { return }
+        signalLostTask = Task {
+            try? await Task.sleep(for: .seconds(2.5))
+            guard !Task.isCancelled else { return }
+            await MainActor.run { self.locationSignalLost = true }
+        }
     }
 }

@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		954AF9E62FF9BEDA00F1AE0D /* RouteLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 954AF9E52FF9BEDA00F1AE0D /* RouteLibraryView.swift */; };
+		954AF9E82FF9C04E00F1AE0D /* GroupLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 954AF9E72FF9C04E00F1AE0D /* GroupLibraryView.swift */; };
 		955578752FE9B61400C6F287 /* RouteSmoothing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955578742FE9B61400C6F287 /* RouteSmoothing.swift */; };
 		955578792FE9D5F900C6F287 /* CreatePlanGroupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955578782FE9D5F900C6F287 /* CreatePlanGroupView.swift */; };
 		9555787B2FE9D60C00C6F287 /* PlanGroupDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9555787A2FE9D60C00C6F287 /* PlanGroupDetailView.swift */; };
@@ -52,6 +54,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		954AF9E52FF9BEDA00F1AE0D /* RouteLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteLibraryView.swift; sourceTree = "<group>"; };
+		954AF9E72FF9C04E00F1AE0D /* GroupLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupLibraryView.swift; sourceTree = "<group>"; };
 		955578742FE9B61400C6F287 /* RouteSmoothing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteSmoothing.swift; sourceTree = "<group>"; };
 		955578782FE9D5F900C6F287 /* CreatePlanGroupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatePlanGroupView.swift; sourceTree = "<group>"; };
 		9555787A2FE9D60C00C6F287 /* PlanGroupDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanGroupDetailView.swift; sourceTree = "<group>"; };
@@ -216,6 +220,8 @@
 				956D4B352FE77E7B0024B101 /* SettingsHomeView.swift */,
 				955E70752FEB2311000C2792 /* ExerciseLibraryView.swift */,
 				95E3E8A82FF4DF2700604398 /* PresetEditorView.swift */,
+				954AF9E52FF9BEDA00F1AE0D /* RouteLibraryView.swift */,
+				954AF9E72FF9C04E00F1AE0D /* GroupLibraryView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -390,12 +396,14 @@
 				956D4B2A2FE76EDC0024B101 /* EditRouteView.swift in Sources */,
 				955578752FE9B61400C6F287 /* RouteSmoothing.swift in Sources */,
 				956D4B3A2FE78A010024B101 /* SegmentDirection.swift in Sources */,
+				954AF9E82FF9C04E00F1AE0D /* GroupLibraryView.swift in Sources */,
 				956D4B202FE740190024B101 /* CreateRouteView.swift in Sources */,
 				956D4B322FE77E600024B101 /* CreatePlanView.swift in Sources */,
 				956D4B302FE77E4F0024B101 /* PlansHomeView.swift in Sources */,
 				955578792FE9D5F900C6F287 /* CreatePlanGroupView.swift in Sources */,
 				95E3E89D2FF4CE8D00604398 /* SessionsHomeView.swift in Sources */,
 				956D4B242FE7404B0024B101 /* SessionRecordingView.swift in Sources */,
+				954AF9E62FF9BEDA00F1AE0D /* RouteLibraryView.swift in Sources */,
 				9555787B2FE9D60C00C6F287 /* PlanGroupDetailView.swift in Sources */,
 				95E3E8A72FF4DF1F00604398 /* PresetStorage.swift in Sources */,
 				95E3E8A92FF4DF2700604398 /* PresetEditorView.swift in Sources */,
@@ -560,7 +568,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = CV6V8EV5NQ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -574,6 +582,7 @@
 				INFOPLIST_KEY_UIStatusBarStyle = "";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -582,12 +591,16 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.software78.surge15;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -597,7 +610,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = CV6V8EV5NQ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -611,6 +624,7 @@
 				INFOPLIST_KEY_UIStatusBarStyle = "";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -619,12 +633,16 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.software78.surge15;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};

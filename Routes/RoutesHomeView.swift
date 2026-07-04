@@ -144,6 +144,7 @@ struct RoutesHomeView: View {
             .sheet(item: $clusterPeek, onDismiss: handleClusterDismiss) { selection in
                 ClusterSheet(
                     routes: selection.routes,
+                    userCoordinate: userCoordinate,
                     onSelect: { route in
                         pendingPeek = route
                         clusterPeek = nil
@@ -209,7 +210,7 @@ struct RoutesHomeView: View {
                     Image(systemName: "location.fill")
                 }
                 .accessibilityLabel("Center on my location")
-                .disabled(isLocationUnavailable)
+                .disabled(isLocationUnavailable || isAcquiringGPS)
             }
         }
         ToolbarItem(placement: .topBarTrailing) {
@@ -224,6 +225,15 @@ struct RoutesHomeView: View {
     }
 
     private func recenterOnUser() {
+        // Immediately snap to the cached coordinate if we have one,
+        // then request a fresh fix to follow up with a more accurate position.
+        if let coord = userCoordinate {
+            cameraPosition = .region(MKCoordinateRegion(
+                center: coord,
+                latitudinalMeters: homeZoomMeters,
+                longitudinalMeters: homeZoomMeters
+            ))
+        }
         didCenterOnUser = false
         tracker.requestSingleLocation()
     }
@@ -385,11 +395,11 @@ struct RoutesHomeView: View {
     private var startPin: some View {
         ZStack {
             Circle()
-                .fill(.white)
+                .fill(Color(red: 0.145, green: 0.388, blue: 0.922))
                 .frame(width: 34, height: 34)
                 .shadow(radius: 2)
             Image(systemName: "flag.fill")
-                .foregroundStyle(.green)
+                .foregroundStyle(.white)
                 .font(.system(size: 16, weight: .bold))
         }
     }
@@ -401,7 +411,7 @@ struct RoutesHomeView: View {
                 .frame(width: 48, height: 48)
                 .shadow(radius: 3)
             Circle()
-                .fill(.green)
+                .fill(Color(red: 0.145, green: 0.388, blue: 0.922))
                 .frame(width: 40, height: 40)
             Text("\(count)")
                 .foregroundStyle(.white)
@@ -411,7 +421,9 @@ struct RoutesHomeView: View {
     }
 
     private var isLocationUnavailable: Bool {
-        tracker.authorizationStatus == .denied || tracker.authorizationStatus == .restricted
+        tracker.authorizationStatus == .denied ||
+        tracker.authorizationStatus == .restricted ||
+        tracker.locationSignalLost
     }
 
     private var deniedOverlay: some View {
@@ -465,31 +477,6 @@ struct RoutesHomeView: View {
         clusterRoutes(routes, withinMeters: clusterThresholdMeters)
     }
 
-    // MARK: - List mode adaptive colors
-
-    private var isLight: Bool { colorScheme == .light }
-
-    // #dbeafe light ↔ #1e3a8a dark
-    private var iconCircleFill: Color {
-        isLight ? Color(red: 0.859, green: 0.914, blue: 0.996) : Color(red: 0.118, green: 0.227, blue: 0.541)
-    }
-    // #2563eb light ↔ #60a5fa dark
-    private var iconForeground: Color {
-        isLight ? Color(red: 0.145, green: 0.388, blue: 0.922) : Color(red: 0.376, green: 0.647, blue: 0.980)
-    }
-    // #0f172a ink light ↔ white dark
-    private var rowNameColor: Color {
-        isLight ? Color(red: 0.059, green: 0.090, blue: 0.165) : .white
-    }
-    // #9fb0d4 muted slate light ↔ #c2cde4 light slate dark
-    private var rowCaptionColor: Color {
-        isLight ? Color(red: 0.624, green: 0.690, blue: 0.831) : Color(red: 0.761, green: 0.804, blue: 0.894)
-    }
-    // #c2cde4 light ↔ #9fb0d4 dark
-    private var chevronColor: Color {
-        isLight ? Color(red: 0.761, green: 0.804, blue: 0.894) : Color(red: 0.624, green: 0.690, blue: 0.831)
-    }
-
     // MARK: - List mode
 
     private var listHome: some View {
@@ -507,7 +494,7 @@ struct RoutesHomeView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { peekRoute = route }
         } listRow: { route in
-            routeListRow(route: route)
+            RouteListRowView(route: route) { peekRoute = route }
         }
     }
 
@@ -523,8 +510,78 @@ struct RoutesHomeView: View {
         Array(routesForLayout.prefix(5))
     }
 
-    private func routeListRow(route: Route) -> some View {
-        Button { peekRoute = route } label: {
+    private var userCoordinate: CLLocationCoordinate2D? {
+        tracker.recordedLocations.last?.coordinate
+    }
+}
+
+// MARK: - Clustering helper
+
+/// Single-link connected-components clustering of routes whose start coordinates
+/// fall within `meters` of each other (transitively).
+func clusterRoutes(_ routes: [Route], withinMeters meters: CLLocationDistance) -> [RouteCluster] {
+    let coords: [(route: Route, coord: CLLocationCoordinate2D)] = routes.compactMap { r in
+        guard let c = r.startCoordinate else { return nil }
+        return (r, c)
+    }
+    var clusters: [RouteCluster] = []
+    var visited = Set<Int>()  // indices into `coords`
+
+    for i in coords.indices {
+        if visited.contains(i) { continue }
+        var members: [Route] = []
+        var queue: [Int] = [i]
+        while let idx = queue.popLast() {
+            if visited.contains(idx) { continue }
+            visited.insert(idx)
+            members.append(coords[idx].route)
+            for j in coords.indices where !visited.contains(j) {
+                if coords[idx].coord.distance(to: coords[j].coord) <= meters {
+                    queue.append(j)
+                }
+            }
+        }
+        let rads = members.compactMap { $0.startCoordinate }
+            .map { (lat: $0.latitude * .pi / 180.0, lon: $0.longitude * .pi / 180.0) }
+        let x = rads.map { cos($0.lat) * cos($0.lon) }.reduce(0, +)
+        let y = rads.map { cos($0.lat) * sin($0.lon) }.reduce(0, +)
+        let z = rads.map { sin($0.lat) }.reduce(0, +)
+        let centroid = CLLocationCoordinate2D(
+            latitude:  atan2(z, sqrt(x * x + y * y)) * 180.0 / .pi,
+            longitude: atan2(y, x) * 180.0 / .pi
+        )
+        clusters.append(RouteCluster(routes: members, coordinate: centroid))
+    }
+    return clusters
+}
+
+// MARK: - Shared route list row
+
+struct RouteListRowView: View {
+    let route: Route
+    let onTap: () -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var isLight: Bool { colorScheme == .light }
+    private var iconCircleFill: Color {
+        isLight ? Color(red: 0.859, green: 0.914, blue: 0.996) : Color(red: 0.118, green: 0.227, blue: 0.541)
+    }
+    private var iconForeground: Color {
+        isLight ? Color(red: 0.145, green: 0.388, blue: 0.922) : Color(red: 0.376, green: 0.647, blue: 0.980)
+    }
+    private var rowNameColor: Color {
+        isLight ? Color(red: 0.059, green: 0.090, blue: 0.165) : .white
+    }
+    private var rowCaptionColor: Color {
+        isLight ? Color(red: 0.624, green: 0.690, blue: 0.831) : Color(red: 0.761, green: 0.804, blue: 0.894)
+    }
+    private var chevronColor: Color {
+        isLight ? Color(red: 0.761, green: 0.804, blue: 0.894) : Color(red: 0.624, green: 0.690, blue: 0.831)
+    }
+
+    var body: some View {
+        Button { onTap() } label: {
             HStack(spacing: 14) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
@@ -562,85 +619,48 @@ struct RoutesHomeView: View {
         }
         .buttonStyle(.plain)
     }
-
-    private var userCoordinate: CLLocationCoordinate2D? {
-        tracker.recordedLocations.last?.coordinate
-    }
-}
-
-// MARK: - Clustering helper
-
-/// Single-link connected-components clustering of routes whose start coordinates
-/// fall within `meters` of each other (transitively).
-func clusterRoutes(_ routes: [Route], withinMeters meters: CLLocationDistance) -> [RouteCluster] {
-    let coords: [(route: Route, coord: CLLocationCoordinate2D)] = routes.compactMap { r in
-        guard let c = r.startCoordinate else { return nil }
-        return (r, c)
-    }
-    var clusters: [RouteCluster] = []
-    var visited = Set<Int>()  // indices into `coords`
-
-    for i in coords.indices {
-        if visited.contains(i) { continue }
-        var members: [Route] = []
-        var queue: [Int] = [i]
-        while let idx = queue.popLast() {
-            if visited.contains(idx) { continue }
-            visited.insert(idx)
-            members.append(coords[idx].route)
-            for j in coords.indices where !visited.contains(j) {
-                if coords[idx].coord.distance(to: coords[j].coord) <= meters {
-                    queue.append(j)
-                }
-            }
-        }
-        let lats = members.compactMap { $0.startCoordinate?.latitude }
-        let lons = members.compactMap { $0.startCoordinate?.longitude }
-        let centroid = CLLocationCoordinate2D(
-            latitude: lats.reduce(0, +) / Double(lats.count),
-            longitude: lons.reduce(0, +) / Double(lons.count)
-        )
-        clusters.append(RouteCluster(routes: members, coordinate: centroid))
-    }
-    return clusters
 }
 
 // MARK: - Cluster sheet
 
 struct ClusterSheet: View {
     let routes: [Route]
+    let userCoordinate: CLLocationCoordinate2D?
     let onSelect: (Route) -> Void
 
+    @State private var sheetHeight: CGFloat = 300
+
     var body: some View {
-        NavigationStack {
-            List(routes) { route in
-                Button {
-                    onSelect(route)
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(truncatedRouteName(route.name))
-                                .font(.headline)
-                                .lineLimit(1)
-                            HStack(spacing: 8) {
-                                Label(Formatters.distance(route.distanceMeters), systemImage: "ruler")
-                                Label("\(route.sessions.count) sessions", systemImage: "figure.run")
-                            }
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 0) {
+            Text("\(routes.count) Routes")
+                .font(.headline)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(routes) { route in
+                        let dist = userCoordinate.flatMap { user in
+                            route.startCoordinate.map { $0.distance(to: user) }
                         }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundStyle(.secondary)
+                        RouteCardView(route: route, distanceAway: dist)
+                            .frame(width: 220)
+                            .contentShape(Rectangle())
+                            .onTapGesture { onSelect(route) }
                     }
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
             }
-            .navigationTitle("\(routes.count) Routes Here")
-            .navigationBarTitleDisplayMode(.inline)
         }
-        .presentationDetents([.medium, .large])
+        .background(
+            GeometryReader { proxy in
+                Color.clear.onAppear { sheetHeight = proxy.size.height }
+            }
+        )
+        .presentationDetents([.height(sheetHeight)])
         .presentationDragIndicator(.visible)
     }
 }

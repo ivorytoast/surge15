@@ -12,6 +12,42 @@ let autoRestDurationKey = "autoRestDuration"
 let autoRestDurationDefault: Int = 30
 let hiddenBuiltinExercisesKey = "hiddenBuiltinExercises"
 
+private enum SettingsHelp: Identifiable {
+    case countdown, autoRest
+    case routes, exercises, presets
+    case importRoute
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .countdown:  "Countdown"
+        case .autoRest:   "Rest Duration"
+        case .routes:     "Routes"
+        case .exercises:  "Exercises"
+        case .presets:    "Presets"
+        case .importRoute:"Import Route"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .countdown:
+            "The seconds shown on the countdown timer before a GPS run or exercise begins — giving you time to get into position."
+        case .autoRest:
+            "The length of the automatic rest break inserted between exercises in Auto mode. Tap 'Start Now' on the timer to skip it early."
+        case .routes:
+            "View and manage your saved GPS routes. You can rename or permanently delete any route."
+        case .exercises:
+            "Show or hide built-in exercises, and create custom exercises that appear in the exercise picker during workouts."
+        case .presets:
+            "Customize the quick-select chips shown when starting exercises and runs — lap counts, distances, reps, minutes, pace targets, and durations."
+        case .importRoute:
+            "Import a GPS route shared by another surge15 user. Ask them for the 8-character share code and enter it here."
+        }
+    }
+}
+
 struct SettingsHomeView: View {
     @AppStorage(countdownDefaultKey) private var countdownDefault: Int = countdownDefaultValue
     @AppStorage(autoRestDurationKey) private var autoRestDuration: Int = autoRestDurationDefault
@@ -21,95 +57,80 @@ struct SettingsHomeView: View {
     @State private var importCode: String = ""
     @State private var isImporting = false
     @State private var importError: String? = nil
+    @State private var activeHelp: SettingsHelp? = nil
 
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    Stepper(value: $countdownDefault, in: 3...30) {
-                        HStack {
-                            Text("Countdown")
-                            Spacer()
-                            Text("\(countdownDefault) sec")
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
+                Section("Timers") {
+                    HStack(spacing: 12) {
+                        infoButton(.countdown)
+                        Stepper(value: $countdownDefault, in: 3...30) {
+                            HStack {
+                                Text("Countdown")
+                                Spacer()
+                                Text("\(countdownDefault) sec")
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
+                            }
                         }
                     }
-                } header: {
-                    Text("Workout")
-                } footer: {
-                    Text("Seconds shown before GPS runs and exercises begin.")
-                }
-
-                Section {
-                    Stepper(value: $autoRestDuration, in: 5...120, step: 5) {
-                        HStack {
-                            Text("Rest Duration")
-                            Spacer()
-                            Text(Self.formatRestDuration(autoRestDuration))
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
+                    HStack(spacing: 12) {
+                        infoButton(.autoRest)
+                        Stepper(value: $autoRestDuration, in: 5...120, step: 5) {
+                            HStack {
+                                Text("Rest Duration")
+                                Spacer()
+                                Text(Self.formatRestDuration(autoRestDuration))
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
+                            }
                         }
                     }
-                } header: {
-                    Text("Auto Mode")
-                } footer: {
-                    Text("Rest time inserted between exercises in Auto mode. Tap 'Start Now' on the timer to skip it early.")
                 }
 
-                Section {
-                    NavigationLink {
-                        ExerciseLibraryView()
-                    } label: {
-                        Label("Exercises", systemImage: "dumbbell.fill")
+                Section("Workouts") {
+                    HStack(spacing: 12) {
+                        infoButton(.routes)
+                        NavigationLink {
+                            RouteLibraryView()
+                        } label: {
+                            Label("Routes", systemImage: "map")
+                        }
                     }
-                    NavigationLink {
-                        LapPresetsEditorView()
-                    } label: {
-                        Label("Lap Presets", systemImage: "repeat")
+                    HStack(spacing: 12) {
+                        infoButton(.exercises)
+                        NavigationLink {
+                            ExerciseLibraryView()
+                        } label: {
+                            Label("Exercises", systemImage: "dumbbell.fill")
+                        }
                     }
-                    NavigationLink {
-                        MeterPresetsEditorView()
-                    } label: {
-                        Label("Distance Presets", systemImage: "ruler")
+                    HStack(spacing: 12) {
+                        infoButton(.presets)
+                        NavigationLink {
+                            PresetListView()
+                        } label: {
+                            Label("Presets", systemImage: "dial.low")
+                        }
                     }
-                    NavigationLink {
-                        RepPresetsEditorView()
-                    } label: {
-                        Label("Rep Presets", systemImage: "number")
-                    }
-                    NavigationLink {
-                        MinutePresetsEditorView()
-                    } label: {
-                        Label("Minute Presets", systemImage: "timer")
-                    }
-                    NavigationLink {
-                        PacePresetsEditorView()
-                    } label: {
-                        Label("Pace Presets", systemImage: "speedometer")
-                    }
-                    NavigationLink {
-                        DurationPresetsEditorView()
-                    } label: {
-                        Label("Duration Presets", systemImage: "stopwatch")
-                    }
-                } header: {
-                    Text("Library")
-                } footer: {
-                    Text("Manage exercises and the preset chips shown when building plans and starting routes.")
                 }
 
                 Section("Sharing") {
-                    Button {
-                        importCode = ""
-                        showingImportRoute = true
-                    } label: {
-                        Label("Import Route", systemImage: "arrow.down.circle")
-                            .foregroundStyle(.primary)
+                    HStack(spacing: 12) {
+                        infoButton(.importRoute)
+                        Button {
+                            importCode = ""
+                            showingImportRoute = true
+                        } label: {
+                            Label("Import Route", systemImage: "arrow.down.circle")
+                                .foregroundStyle(.primary)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
 
-                Section("Help") {
+                Section("App") {
                     Link(destination: URL(string: "https://surge15.app/")!) {
                         Label("surge15.app", systemImage: "globe")
                     }
@@ -120,6 +141,14 @@ struct SettingsHomeView: View {
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showingImportRoute) {
                 importRouteSheet
+            }
+            .alert(activeHelp?.title ?? "", isPresented: Binding(
+                get: { activeHelp != nil },
+                set: { if !$0 { activeHelp = nil } }
+            )) {
+                Button("OK", role: .cancel) { activeHelp = nil }
+            } message: {
+                if let h = activeHelp { Text(h.detail) }
             }
         }
     }
@@ -182,11 +211,61 @@ struct SettingsHomeView: View {
         .presentationDetents([.medium])
     }
 
+
+    @ViewBuilder private func infoButton(_ help: SettingsHelp) -> some View {
+        Button { activeHelp = help } label: {
+            Image(systemName: "info.circle")
+                .foregroundStyle(.blue)
+        }
+        .buttonStyle(.plain)
+    }
+
     private static func formatRestDuration(_ seconds: Int) -> String {
         if seconds < 60 { return "\(seconds) sec" }
         let m = seconds / 60
         let s = seconds % 60
         return s == 0 ? "\(m) min" : "\(m):\(String(format: "%02d", s))"
+    }
+}
+
+// MARK: - Preset sub-list
+
+struct PresetListView: View {
+    var body: some View {
+        List {
+            NavigationLink {
+                LapPresetsEditorView()
+            } label: {
+                Label("Lap Presets", systemImage: "repeat")
+            }
+            NavigationLink {
+                MeterPresetsEditorView()
+            } label: {
+                Label("Distance Presets", systemImage: "ruler")
+            }
+            NavigationLink {
+                RepPresetsEditorView()
+            } label: {
+                Label("Rep Presets", systemImage: "number")
+            }
+            NavigationLink {
+                MinutePresetsEditorView()
+            } label: {
+                Label("Minute Presets", systemImage: "timer")
+            }
+            NavigationLink {
+                PacePresetsEditorView()
+            } label: {
+                Label("Pace Presets", systemImage: "speedometer")
+            }
+            NavigationLink {
+                DurationPresetsEditorView()
+            } label: {
+                Label("Duration Presets", systemImage: "stopwatch")
+            }
+        }
+        .navigationTitle("Presets")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

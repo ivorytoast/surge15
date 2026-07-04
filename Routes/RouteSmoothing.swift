@@ -8,9 +8,6 @@
 
 import CoreLocation
 
-let routeSmoothingEpsilonKey = "routeSmoothingEpsilon"
-let routeSmoothingEpsilonDefault: Double = 5.0
-
 /// Epsilon used everywhere a route polyline is rendered in the app.
 let routeDisplayEpsilon: Double = 5.0
 

@@ -762,11 +762,11 @@ struct SessionRecordingView: View {
                     Annotation(startFromEnd ? "End" : "Start", coordinate: gate) {
                         ZStack {
                             Circle()
-                                .fill(.white)
+                                .fill(Color(red: 0.145, green: 0.388, blue: 0.922))
                                 .frame(width: 28, height: 28)
                                 .shadow(radius: 2)
                             Image(systemName: startFromEnd ? "flag.checkered" : "flag.fill")
-                                .foregroundStyle(.green)
+                                .foregroundStyle(.white)
                                 .font(.system(size: 14, weight: .bold))
                         }
                     }

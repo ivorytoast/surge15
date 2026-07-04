@@ -1234,9 +1234,9 @@ struct RouteRunSetupView: View {
                     if let start = route.startCoordinate {
                         Annotation("", coordinate: start) {
                             ZStack {
-                                Circle().fill(.white).frame(width: 20, height: 20).shadow(radius: 2)
+                                Circle().fill(Color(red: 0.145, green: 0.388, blue: 0.922)).frame(width: 20, height: 20).shadow(radius: 2)
                                 Image(systemName: "flag.fill")
-                                    .foregroundStyle(.green)
+                                    .foregroundStyle(.white)
                                     .font(.system(size: 10, weight: .bold))
                             }
                         }
