@@ -13,26 +13,46 @@ struct RouteLibraryView: View {
     @State private var renamingRoute: Route?
     @State private var newName: String = ""
     @State private var deletingRoute: Route?
+    @Environment(\.editMode) private var editMode
 
     var body: some View {
         List {
             ForEach(routes) { route in
-                Button {
-                    renamingRoute = route
-                    newName = route.name
-                } label: {
-                    HStack {
-                        Text(route.name)
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        Image(systemName: "pencil")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color(.tertiaryLabel))
+                HStack {
+                    Button {
+                        renamingRoute = route
+                        newName = route.name
+                    } label: {
+                        HStack {
+                            Text(route.name)
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            if editMode?.wrappedValue != .active {
+                                Image(systemName: "pencil")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color(.tertiaryLabel))
+                            }
+                        }
+                    }
+                    if editMode?.wrappedValue == .active {
+                        Button(role: .destructive) {
+                            deletingRoute = route
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .accessibilityLabel("Delete \(route.name)")
                     }
                 }
             }
-            .onDelete { indexSet in
-                indexSet.forEach { deletingRoute = routes[$0] }
+        }
+        .onAppear {
+            for route in routes where route.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                route.name = "Untitled Route"
+            }
+        }
+        .onChange(of: routes) { _, newRoutes in
+            for route in newRoutes where route.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                route.name = "Untitled Route"
             }
         }
         .navigationTitle("Routes")

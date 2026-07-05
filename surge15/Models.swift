@@ -90,6 +90,12 @@ final class Route {
     }
 }
 
+extension Route: GremlinSeedable {
+    static func seed(using random: inout GremlinRandom) -> Route {
+        Route(name: random.randomName(prefix: "Route"))
+    }
+}
+
 // MARK: - RoutePoint (defines a route's shape)
 
 @Model
@@ -255,6 +261,19 @@ final class PlanGroup {
     }
 }
 
+extension PlanGroup: GremlinSeedable {
+    static func seed(using random: inout GremlinRandom) -> PlanGroup {
+        let g = PlanGroup(name: random.randomName(prefix: "Group"))
+        g.cardGradientIndex = random.int(in: 0..<planGradients.count)
+        return g
+    }
+
+    func mutate(using random: inout GremlinRandom) {
+        name = random.randomName(prefix: "Group")
+        cardGradientIndex = random.int(in: 0..<planGradients.count)
+    }
+}
+
 // MARK: - Plan (a reusable workout template)
 
 @Model
@@ -277,6 +296,16 @@ final class Plan {
 
     var sortedItems: [PlanItem] {
         items.sorted { $0.order < $1.order }
+    }
+}
+
+extension Plan: GremlinSeedable {
+    static func seed(using random: inout GremlinRandom) -> Plan {
+        Plan(name: random.randomName(prefix: "Plan"))
+    }
+
+    func mutate(using random: inout GremlinRandom) {
+        name = random.randomName(prefix: "Plan")
     }
 }
 
@@ -503,6 +532,12 @@ final class Session {
             return [duration]
         }
         return []
+    }
+}
+
+extension Session: GremlinSeedable {
+    static func seed(using random: inout GremlinRandom) -> Session {
+        Session(startedAt: Date(), targetLaps: random.int(in: 1..<4))
     }
 }
 

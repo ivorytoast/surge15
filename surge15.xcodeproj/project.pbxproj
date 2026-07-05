@@ -13,6 +13,7 @@
 		955578792FE9D5F900C6F287 /* CreatePlanGroupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955578782FE9D5F900C6F287 /* CreatePlanGroupView.swift */; };
 		9555787B2FE9D60C00C6F287 /* PlanGroupDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9555787A2FE9D60C00C6F287 /* PlanGroupDetailView.swift */; };
 		955E70762FEB2311000C2792 /* ExerciseLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 955E70752FEB2311000C2792 /* ExerciseLibraryView.swift */; };
+		956BEB9A2FFB06BF0029EEED /* GremlinKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956BEB992FFB06BF0029EEED /* GremlinKit.swift */; };
 		956D4B1A2FE737E80024B101 /* LocationTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B192FE737E80024B101 /* LocationTracker.swift */; };
 		956D4B1E2FE73FFF0024B101 /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B1D2FE73FFF0024B101 /* Formatters.swift */; };
 		956D4B202FE740190024B101 /* CreateRouteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B1F2FE740190024B101 /* CreateRouteView.swift */; };
@@ -60,6 +61,7 @@
 		955578782FE9D5F900C6F287 /* CreatePlanGroupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatePlanGroupView.swift; sourceTree = "<group>"; };
 		9555787A2FE9D60C00C6F287 /* PlanGroupDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanGroupDetailView.swift; sourceTree = "<group>"; };
 		955E70752FEB2311000C2792 /* ExerciseLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseLibraryView.swift; sourceTree = "<group>"; };
+		956BEB992FFB06BF0029EEED /* GremlinKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GremlinKit.swift; sourceTree = "<group>"; };
 		956D4AED2FE736230024B101 /* surge15.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = surge15.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		956D4AFC2FE736240024B101 /* surge15Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = surge15Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		956D4B062FE736240024B101 /* surge15UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = surge15UITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -155,6 +157,7 @@
 				95E3E89E2FF4D01300604398 /* Surge */,
 				95E3E8A12FF4D1E500604398 /* Settings */,
 				95E3E8A22FF4D20600604398 /* Core */,
+				956BEB992FFB06BF0029EEED /* GremlinKit.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -400,6 +403,7 @@
 				956D4B202FE740190024B101 /* CreateRouteView.swift in Sources */,
 				956D4B322FE77E600024B101 /* CreatePlanView.swift in Sources */,
 				956D4B302FE77E4F0024B101 /* PlansHomeView.swift in Sources */,
+				956BEB9A2FFB06BF0029EEED /* GremlinKit.swift in Sources */,
 				955578792FE9D5F900C6F287 /* CreatePlanGroupView.swift in Sources */,
 				95E3E89D2FF4CE8D00604398 /* SessionsHomeView.swift in Sources */,
 				956D4B242FE7404B0024B101 /* SessionRecordingView.swift in Sources */,

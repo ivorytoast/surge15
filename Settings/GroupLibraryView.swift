@@ -19,7 +19,7 @@ struct GroupLibraryView: View {
                 } label: {
                     HStack(spacing: 12) {
                         Circle()
-                            .fill(planGradients[group.cardGradientIndex % planGradients.count].linear)
+                            .fill(planGradients[abs(group.cardGradientIndex) % planGradients.count].linear)
                             .frame(width: 28, height: 28)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(group.name)
@@ -45,6 +45,7 @@ struct GroupEditView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var showingDeleteConfirm = false
+    @FocusState private var nameFieldFocused: Bool
 
     var body: some View {
         Form {
@@ -59,6 +60,20 @@ struct GroupEditView: View {
                     .textInputAutocapitalization(.words)
                     .font(.headline)
                     .autocorrectionDisabled()
+                    .focused($nameFieldFocused)
+                    .onChange(of: group.name) { _, newValue in
+                        // Safety net for programmatic changes (e.g. sync, gremlin): empty/whitespace → default
+                        if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            group.name = "Untitled Group"
+                        }
+                    }
+                    .onChange(of: nameFieldFocused) { _, focused in
+                        // Trim whitespace when the user leaves the field
+                        if !focused {
+                            let trimmed = group.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if trimmed != group.name { group.name = trimmed.isEmpty ? "Untitled Group" : trimmed }
+                        }
+                    }
             }
 
             Section("Color") {
@@ -109,6 +124,10 @@ struct GroupEditView: View {
                 Text("Plans in this group will not be deleted — they'll simply be unassigned.")
             }
         }
+        .onAppear {
+            let trimmed = group.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { group.name = "Untitled Group" }
+        }
         .navigationTitle(group.name.isEmpty ? "Edit Group" : group.name)
         .navigationBarTitleDisplayMode(.inline)
         .alert("Delete Group?", isPresented: $showingDeleteConfirm) {
@@ -124,7 +143,7 @@ struct GroupEditView: View {
 
     private var previewCard: some View {
         ZStack(alignment: .bottomLeading) {
-            planGradients[group.cardGradientIndex % planGradients.count].linear
+            planGradients[abs(group.cardGradientIndex) % planGradients.count].linear
             LinearGradient(colors: [.clear, .black.opacity(0.35)], startPoint: .top, endPoint: .bottom)
 
             VStack(alignment: .leading, spacing: 6) {
