@@ -63,7 +63,7 @@ enum SegmentDirection: String, CaseIterable, Hashable {
     var alertColor: Color {
         switch self {
         case .straight: return Color.green
-        case .end:      return Color.green
+        case .end:      return Color(red: 0.145, green: 0.388, blue: 0.922) // #2563eb
         case .left, .right, .around: return Color.orange
         }
     }

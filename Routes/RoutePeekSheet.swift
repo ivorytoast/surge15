@@ -15,13 +15,18 @@ struct RoutePeekSheet: View {
 
 
     @State private var sessionMode: SessionMode = .laps
-    @State private var targetLaps: Int = 3
-    @State private var targetMeters: Double = 10
+    @AppStorage(targetLapsKey)   private var targetLaps: Int = defaultLapPresets.first ?? 1
+    @AppStorage(targetMetersKey) private var targetMeters: Double = defaultMeterPresets.first ?? 1
 
-    private let lapPresets    = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 20, 25, 50, 100]
-    private let meterPresets: [Double] = [1, 5, 10, 20, 40, 50, 75, 100, 125, 150, 200, 250,
-                                          300, 350, 400, 450, 500, 550, 600, 650, 700, 750,
-                                          800, 850, 900, 950, 1000]
+    @State private var isSharingRoute = false
+    @State private var shareItem: ShareItem? = nil
+    @State private var shareError: String? = nil
+
+    @AppStorage(lapPresetsKey)   private var lapPresetsStorage   = JSONStringArray<Int>(defaultLapPresets)
+    @AppStorage(meterPresetsKey) private var meterPresetsStorage = JSONStringArray<Double>(defaultMeterPresets)
+
+    private var lapPresets:   [Int]    { lapPresetsStorage.values.sorted() }
+    private var meterPresets: [Double] { meterPresetsStorage.values.sorted() }
 
     var body: some View {
         VStack(spacing: 14) {
@@ -29,6 +34,30 @@ struct RoutePeekSheet: View {
                 Text(route.name)
                     .font(.headline)
                 Spacer()
+                if isSharingRoute {
+                    ProgressView().scaleEffect(0.8)
+                        .padding(.trailing, 4)
+                } else {
+                    Button {
+                        isSharingRoute = true
+                        Task {
+                            do {
+                                let code = try await RouteShareService.share(route)
+                                shareItem = ShareItem(text: RouteShareService.shareMessage(code: code))
+                            } catch {
+                                shareError = (error as? RouteShareService.ShareError)?.errorDescription
+                                    ?? "Something went wrong."
+                            }
+                            isSharingRoute = false
+                        }
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 18))
+                            .foregroundStyle(Color(.tertiaryLabel))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.trailing, 6)
+                }
                 Button {
                     route.isFavorite.toggle()
                 } label: {
@@ -52,6 +81,17 @@ struct RoutePeekSheet: View {
         .background(.background, in: RoundedRectangle(cornerRadius: 20))
         .shadow(color: .black.opacity(0.25), radius: 28, y: 10)
         .padding(.horizontal, 20)
+        .sheet(item: $shareItem) { item in
+            ActivityView(activityItems: [item.text])
+        }
+        .alert("Couldn't Share Route", isPresented: Binding(
+            get: { shareError != nil },
+            set: { if !$0 { shareError = nil } }
+        )) {
+            Button("OK", role: .cancel) { shareError = nil }
+        } message: {
+            Text(shareError ?? "")
+        }
     }
 
     // MARK: - Map
@@ -66,11 +106,11 @@ struct RoutePeekSheet: View {
                 Annotation("", coordinate: start) {
                     ZStack {
                         Circle()
-                            .fill(.white)
+                            .fill(Color(red: 0.145, green: 0.388, blue: 0.922))
                             .frame(width: 18, height: 18)
                             .shadow(radius: 1)
                         Image(systemName: "flag.fill")
-                            .foregroundStyle(.green)
+                            .foregroundStyle(.white)
                             .font(.system(size: 9, weight: .heavy))
                     }
                 }

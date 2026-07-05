@@ -41,11 +41,17 @@ struct ExerciseRecordingView: View {
     @State private var countdownRemaining = 5
     @State private var countdownTask: Task<Void, Never>?
 
-    private let lapPresets: [Double]     = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 25, 50]
-    private let meterPresets: [Double]  = [1, 5, 10, 20, 24, 40, 50, 75, 80, 100,
-                                           125, 150, 200, 250, 300, 400, 500, 1000]
-    private let repPresets: [Double]    = [5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100]
-    private let minutePresets: [Double] = [0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 7, 10, 15, 20]
+    @AppStorage(lapPresetsKey)    private var lapPresetsStorage    = JSONStringArray<Double>(defaultLapPresets.map(Double.init))
+    @AppStorage(meterPresetsKey)  private var meterPresetsStorage  = JSONStringArray<Double>(defaultMeterPresets)
+    @AppStorage(repPresetsKey)    private var repPresetsStorage    = JSONStringArray<Double>(defaultRepPresets)
+    @AppStorage(minutePresetsKey) private var minutePresetsStorage = JSONStringArray<Double>(defaultMinutePresets)
+    @AppStorage(targetRepsKey)    private var defaultReps: Double    = defaultRepPresets.first ?? 10
+    @AppStorage(targetMinutesKey) private var defaultMinutes: Double = defaultMinutePresets.first ?? 0.5
+
+    private var lapPresets:    [Double] { lapPresetsStorage.values.sorted() }
+    private var meterPresets:  [Double] { meterPresetsStorage.values.sorted() }
+    private var repPresets:    [Double] { repPresetsStorage.values.sorted() }
+    private var minutePresets: [Double] { minutePresetsStorage.values.sorted() }
 
     // MARK: - Init for built-in exercises
 
@@ -94,11 +100,15 @@ struct ExerciseRecordingView: View {
         self.customSaveIcon = customIcon
         self.surgeSession = surgeSession
         _measure = State(initialValue: primary)
+        let storedReps = UserDefaults.standard.object(forKey: targetRepsKey)
+            .flatMap { $0 as? Double } ?? defaultRepPresets.first ?? 10
+        let storedMinutes = UserDefaults.standard.object(forKey: targetMinutesKey)
+            .flatMap { $0 as? Double } ?? defaultMinutePresets.first ?? 0.5
         let defaultTarget: Double = {
             switch primary {
-            case .reps:           return 10
+            case .reps:           return storedReps
             case .meters, .yards: return 10
-            case .minutes:        return 2
+            case .minutes:        return storedMinutes
             case .laps:           return 2
             }
         }()
@@ -177,8 +187,8 @@ struct ExerciseRecordingView: View {
                         switch measure {
                         case .meters, .yards: targetValue = 24
                         case .laps:           targetValue = 1
-                        case .reps:           targetValue = 10
-                        case .minutes:        targetValue = 2
+                        case .reps:           targetValue = defaultReps
+                        case .minutes:        targetValue = defaultMinutes
                         }
                     }
                 }

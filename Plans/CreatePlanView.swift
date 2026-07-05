@@ -34,16 +34,22 @@ struct CreatePlanView: View {
         var targetSeconds: Double? = nil
     }
 
-    private let pacePresets: [Double] = [210, 240, 270, 300, 330, 360, 390, 420, 480, 600]
-    private let durationPresets: [Double] = [30, 45, 60, 90, 120, 150, 180, 240, 300, 420, 600]
-    private var targetPresets: [Double] { pickerType == .run ? pacePresets : durationPresets }
+    @AppStorage(pacePresetsKey)     private var pacePresetsStorage     = JSONStringArray<Double>(defaultPacePresets)
+    @AppStorage(durationPresetsKey) private var durationPresetsStorage = JSONStringArray<Double>(defaultDurationPresets)
 
-    private let lapPresets: [Double]    = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 25, 50]
-    private let meterPresets: [Double]  = [1, 5, 10, 20, 40, 50, 75, 100, 125, 150, 200, 250,
-                                           300, 350, 400, 450, 500, 550, 600, 650, 700, 750,
-                                           800, 850, 900, 950, 1000]
-    private let repPresets: [Double]    = [5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100]
-    private let minutePresets: [Double] = [0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 7, 10, 15, 20]
+    private var pacePresets:     [Double] { pacePresetsStorage.values.sorted() }
+    private var durationPresets: [Double] { durationPresetsStorage.values.sorted() }
+    private var targetPresets:   [Double] { pickerType == .run ? pacePresets : durationPresets }
+
+    @AppStorage(lapPresetsKey)    private var lapPresetsStorage    = JSONStringArray<Double>(defaultLapPresets.map(Double.init))
+    @AppStorage(meterPresetsKey)  private var meterPresetsStorage  = JSONStringArray<Double>(defaultMeterPresets)
+    @AppStorage(repPresetsKey)    private var repPresetsStorage    = JSONStringArray<Double>(defaultRepPresets)
+    @AppStorage(minutePresetsKey) private var minutePresetsStorage = JSONStringArray<Double>(defaultMinutePresets)
+
+    private var lapPresets:    [Double] { lapPresetsStorage.values.sorted() }
+    private var meterPresets:  [Double] { meterPresetsStorage.values.sorted() }
+    private var repPresets:    [Double] { repPresetsStorage.values.sorted() }
+    private var minutePresets: [Double] { minutePresetsStorage.values.sorted() }
 
     private let typeColumns = [
         GridItem(.flexible(), spacing: 8),
