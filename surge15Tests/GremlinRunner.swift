@@ -77,6 +77,27 @@ extension ModelContext {
     func seedMany<T: GremlinSeedable>(count: Range<Int>, using random: inout GremlinRandom) -> [T] {
         (0..<random.int(in: count)).map { _ in seed(using: &random) }
     }
+
+    /// Append any context objects not yet in `tracking` — call after a UI action
+    /// that may have created new model objects the subject doesn't know about yet.
+    func syncNew<T: PersistentModel>(into tracking: inout [T]) {
+        guard let latest = try? fetch(FetchDescriptor<T>()) else { return }
+        for item in latest where !tracking.contains(where: { $0.persistentModelID == item.persistentModelID }) {
+            tracking.append(item)
+        }
+    }
+
+    /// Pick a random item, remove it from `tracking`, delete it from the context,
+    /// and return it. Properties remain readable until the next save().
+    /// Returns nil if `tracking` is empty.
+    @discardableResult
+    func deleteRandom<T: PersistentModel>(from tracking: inout [T], using random: inout GremlinRandom) -> T? {
+        guard !tracking.isEmpty else { return nil }
+        let item = random.pick(from: tracking)
+        tracking.removeAll { $0.persistentModelID == item.persistentModelID }
+        delete(item)
+        return item
+    }
 }
 
 // MARK: - Accessibility snapshot
@@ -212,9 +233,111 @@ final class GremlinScene {
         settle()
         return .did("mutated \(T.self)")
     }
+
+    // ── Navigation helpers ────────────────────────────────────────────────────
+
+    /// Tap the first element whose label exactly matches, then settle.
+    /// Returns true if the element was found. Use for list rows, cards, and other
+    /// non-button tappable elements identified by their display name.
+    @discardableResult
+    func tapElement(labeled label: String) -> Bool {
+        guard !label.isEmpty, let el = allElements().first(where: { $0.label == label }) else { return false }
+        el.activate()
+        settle()
+        return true
+    }
+
+    /// Tap a tab bar item by label. Tab items may not carry the .button trait on all
+    /// iOS versions, so this searches all elements rather than buttons only.
+    @discardableResult
+    func tapTab(labeled label: String) -> Bool {
+        guard let tab = allElements().first(where: { $0.label == label }) else { return false }
+        tab.activate()
+        settle()
+        return true
+    }
+
+    /// Tap the first available back button from the candidate labels, then settle.
+    /// Returns the label that was tapped, or nil if none was found.
+    @discardableResult
+    func navigateBack(via labels: [String] = ["Back"]) -> String? {
+        for label in labels {
+            if let btn = allElements().first(where: { $0.isButton && $0.label == label }) {
+                btn.activate()
+                settle()
+                return label
+            }
+        }
+        return nil
+    }
+
+    /// Pop all navigation layers back to root by repeatedly tapping back buttons.
+    func popToRoot(via labels: [String] = ["Back"]) {
+        var found = true
+        while found {
+            found = false
+            for label in labels {
+                if let btn = allElements().first(where: { $0.isButton && $0.label == label }) {
+                    btn.activate()
+                    settle()
+                    found = true
+                    break
+                }
+            }
+        }
+    }
+
+    /// Tap a toolbar/menu button then pick an item from the resulting menu overlay.
+    /// `buttonLabels` are tried in order against all window buttons (Menu buttons
+    /// may not appear in the main host view snapshot).
+    /// Returns true if both the menu trigger and the item were found and tapped.
+    @discardableResult
+    func tapMenu(buttonLabels: [String] = ["Add", "plus"], pick itemLabel: String) -> Bool {
+        guard let trigger = allWindowButtons().first(where: { buttonLabels.contains($0.label) }) else { return false }
+        trigger.activate()
+        settle()
+        guard let item = allWindowButtons().first(where: { $0.label == itemLabel }) else { return false }
+        item.activate()
+        settle()
+        return true
+    }
+
+    /// Type into a named text field in any window, then tap a confirm button.
+    /// If the confirm button is not found, taps cancel instead.
+    /// Returns true if the confirm button was found and tapped.
+    @discardableResult
+    func fillSheet(field fieldLabel: String, text: String,
+                   confirm confirmLabel: String = "Create",
+                   cancel cancelLabel: String = "Cancel") -> Bool {
+        typeInWindowField(labeled: fieldLabel, text: text)
+        if let btn = allWindowButtons().first(where: { $0.label == confirmLabel }) {
+            btn.activate()
+            settle()
+            return true
+        }
+        allWindowButtons().first(where: { $0.label == cancelLabel })?.activate()
+        settle()
+        return false
+    }
 }
 
 // MARK: - GremlinSubject protocol
+
+// MARK: - GremlinFlow
+
+/// A composable UI interaction flow. Flows can be tested standalone via
+/// falsify(_:flow:) and embedded inside a parent GremlinSubject by calling
+/// flow.act() and flow.check() directly.
+@MainActor
+protocol GremlinFlow: AnyObject {
+    static var models: [any PersistentModel.Type] { get }
+    init(context: ModelContext, random: inout GremlinRandom) throws
+    var rootView: AnyView { get }
+    func act(scene: GremlinScene, random: inout GremlinRandom) -> GremlinAction
+    func check(scene: GremlinScene) -> String?
+}
+
+// MARK: - GremlinSubject
 
 @MainActor
 protocol GremlinSubject: AnyObject {
@@ -328,4 +451,35 @@ func falsify<S: GremlinSubject>(
             """)
         return
     }
+}
+
+// MARK: - GremlinFlow standalone runner
+
+/// Thin adapter so a GremlinFlow can be driven by the existing falsify() machinery.
+@MainActor
+private final class FlowAdapter<F: GremlinFlow>: GremlinSubject {
+    static var models: [any PersistentModel.Type] { F.models }
+    private let flow: F
+    required init(context: ModelContext, random: inout GremlinRandom) throws {
+        flow = try F(context: context, random: &random)
+    }
+    var rootView: AnyView { flow.rootView }
+    func act(scene: GremlinScene, random: inout GremlinRandom) -> GremlinAction {
+        flow.act(scene: scene, random: &random)
+    }
+    func check(scene: GremlinScene, wasDismissed: Bool) -> String? {
+        flow.check(scene: scene)
+    }
+}
+
+/// Run a GremlinFlow standalone — identical to falsify(_:subject:) but wired
+/// through FlowAdapter so flows need no knowledge of wasDismissed.
+@MainActor
+func falsify<F: GremlinFlow>(
+    _ name: String,
+    flow: F.Type,
+    runs: Int = 60,
+    corpus: [String] = []
+) {
+    falsify(name, subject: FlowAdapter<F>.self, runs: runs, corpus: corpus)
 }

@@ -33,6 +33,14 @@ struct GroupLibraryView: View {
         }
         .navigationTitle("Groups")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { sanitizeGroupNames() }
+        .onChange(of: groups.map(\.name)) { sanitizeGroupNames() }
+    }
+
+    private func sanitizeGroupNames() {
+        for group in groups where group.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            group.name = "Untitled Group"
+        }
     }
 }
 

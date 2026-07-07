@@ -334,6 +334,24 @@ struct PlansHomeView: View {
             .sheet(isPresented: $showingCreatePlan) {
                 CreatePlanView()
             }
+            .onAppear {
+                sanitizeGroupNames()
+                sanitizePlanNames()
+            }
+            .onChange(of: groups.map(\.name)) { sanitizeGroupNames() }
+            .onChange(of: allPlans.map(\.name)) { sanitizePlanNames() }
+        }
+    }
+
+    private func sanitizeGroupNames() {
+        for group in groups where group.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            group.name = "Untitled Group"
+        }
+    }
+
+    private func sanitizePlanNames() {
+        for plan in allPlans where plan.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            plan.name = "Untitled Plan"
         }
     }
 

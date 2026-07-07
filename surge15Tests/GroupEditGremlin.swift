@@ -72,7 +72,7 @@ final class GroupEditSubject: GremlinSubject {
 
         case 4: // external model mutation while view is live (simulates sync)
             guard !plans.isEmpty else { return .noop("no plans") }
-            let p = plans[random.int(in: 0..<plans.count)]
+            let p = random.pick(from: plans)
             p.group = random.bool() ? nil : group
             scene.settle()
             return .did("external toggle of \(p.name)")

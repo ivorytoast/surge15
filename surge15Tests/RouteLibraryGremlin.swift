@@ -63,7 +63,7 @@ final class RouteLibrarySubject: GremlinSubject {
 
         case 2: // external delete (simulates sync removing a route while view is live)
             guard !routes.isEmpty else { return .noop("no routes") }
-            let r = routes[random.int(in: 0..<routes.count)]
+            let r = random.pick(from: routes)
             let name = r.name
             let routeSessionIDs = Set(r.sessions.map(\.persistentModelID))
             sessions.removeAll { routeSessionIDs.contains($0.persistentModelID) }
@@ -101,7 +101,7 @@ final class RouteLibrarySubject: GremlinSubject {
                 return .noop("no delete controls in edit mode")
             }
 
-            let control = deleteControls[random.int(in: 0..<deleteControls.count)]
+            let control = random.pick(from: deleteControls)
             let routeName = String(control.label.dropFirst("Delete ".count))
             control.activate()
             scene.settle()
