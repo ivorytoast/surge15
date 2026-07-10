@@ -17,6 +17,11 @@ struct CreatePlanView: View {
     @State private var selectedGroup: PlanGroup? = nil
     @State private var gradientIndex: Int = Int.random(in: 0..<planGradients.count)
     @State private var draftItems: [DraftItem] = []
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding: Bool = false
+    @AppStorage("onboardingPhase") private var onboardingPhase: Int = 0
+
+    private var inTutorial: Bool { !hasSeenOnboarding && onboardingPhase == 4 }
+
     @State private var showingDetails = false
 
     @State private var pickerType: WorkoutItemType = .run
@@ -120,10 +125,11 @@ struct CreatePlanView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .disabled(inTutorial)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { showingDetails = true }
-                        .disabled(draftItems.isEmpty)
+                        .disabled(draftItems.isEmpty || inTutorial)
                 }
             }
             .sheet(isPresented: $showingDetails) {
@@ -143,7 +149,52 @@ struct CreatePlanView: View {
                 }
             }
             .onChange(of: pickerType) { _, _ in pickerTargetSeconds = nil }
+            .overlay {
+                if inTutorial {
+                    createPlanTutorialOverlay
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeOut(duration: 0.2), value: inTutorial)
         }
+    }
+
+    // MARK: - Tutorial overlay (phase 4)
+
+    private var createPlanTutorialOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.55)
+                .ignoresSafeArea(edges: .bottom)
+                .allowsHitTesting(false)
+
+            VStack {
+                Spacer()
+
+                OnboardingCallout(
+                    title: "Building a Plan",
+                    message: "Pick an exercise type at the top — Run, Lift, Row, and more. Use the chips below to set the quantity, then tap 'Add to Plan' to build your sequence.",
+                    buttonTitle: "Continue",
+                    gotItAction: {
+                        onboardingPhase = 5
+                        dismiss()
+                    }
+                )
+                .padding(.horizontal, 24)
+
+                Button("Skip tutorial") {
+                    hasSeenOnboarding = true
+                }
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(Color(onboardingHex: "60a5fa"))
+                .padding(.horizontal, 24)
+                .padding(.vertical, 10)
+                .background(Color(onboardingHex: "1e3a8a"), in: Capsule())
+                .overlay(Capsule().strokeBorder(Color(onboardingHex: "60a5fa").opacity(0.5), lineWidth: 1))
+                .shadow(color: .black.opacity(0.35), radius: 8, y: 2)
+                .padding(.bottom, 28)
+            }
+        }
+        .allowsHitTesting(true)
     }
 
     // MARK: - Plan Details sheet

@@ -26,9 +26,12 @@ struct SurgeIntentView: View {
     var body: some View {
         VStack(spacing: 0) {
             Text("\"\(quote)\"")
+
                 .font(.subheadline.italic())
                 .foregroundStyle(isLight ? Color(red: 0.059, green: 0.090, blue: 0.165) : .white)
                 .multilineTextAlignment(.center)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 8)
                 .padding(.bottom, 14)
 
@@ -65,7 +68,7 @@ struct SurgeIntentView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity)
-        .presentationDetents([.height(320)])
+        .presentationDetents([.height(370)])
         .presentationBackground(pageBackground)
         .onAppear {
             quote = Quotes.surgeIntent.randomElement() ?? ""

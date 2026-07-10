@@ -7,6 +7,9 @@ struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \SurgeSession.createdAt, order: .reverse) private var allSurgeSessions: [SurgeSession]
 
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
+    @AppStorage("onboardingPhase") private var onboardingPhase: Int = 0
+
     @State private var selectedTab: Int = 0
     @State private var lastValidTab: Int = 0
     @State private var sessionsPath = NavigationPath()
@@ -43,6 +46,7 @@ struct RootView: View {
     }
 
     var body: some View {
+        ZStack {
         TabView(selection: $selectedTab) {
             RoutesHomeView()
                 .tabItem {
@@ -107,6 +111,14 @@ struct RootView: View {
             if !isActive { showingSurgeDetail = false }
         }
         .onChange(of: selectedTab) { _, new in
+            if !hasSeenOnboarding && onboardingPhase == 1 && new != routesTab {
+                selectedTab = routesTab
+                return
+            }
+            if !hasSeenOnboarding && onboardingPhase == 3 && new != planTab {
+                selectedTab = planTab
+                return
+            }
             if new == surgeTab {
                 handleSurgeTap()
             } else {
@@ -114,6 +126,64 @@ struct RootView: View {
             }
         }
         .environment(\.startPlan, startPlanAction)
+
+        if !hasSeenOnboarding && onboardingPhase == 0 {
+            OnboardingIntroView()
+                .transition(.opacity)
+        }
+
+        if !hasSeenOnboarding && onboardingPhase == 5 {
+            surgeTabOnboardingOverlay
+                .transition(.opacity)
+        }
+        } // end ZStack
+        .animation(.easeOut(duration: 0.25), value: !hasSeenOnboarding && onboardingPhase == 0)
+        .animation(.easeOut(duration: 0.25), value: !hasSeenOnboarding && onboardingPhase == 5)
+        .onChange(of: onboardingPhase) { _, phase in
+            if phase == 1 {
+                selectedTab = routesTab
+                lastValidTab = routesTab
+            }
+            if phase == 3 {
+                selectedTab = planTab
+                lastValidTab = planTab
+            }
+            if phase == 5 {
+                selectedTab = planTab
+                lastValidTab = planTab
+            }
+        }
+    }
+
+    // MARK: - Onboarding overlay (phase 5)
+
+    private var surgeTabOnboardingOverlay: some View {
+        VStack(spacing: 0) {
+            Spacer()
+            OnboardingCallout(
+                title: "You Finished The Tutorial!",
+                message: "Tap the surge bolt to run a route or execute a plan.",
+                gotItAction: { hasSeenOnboarding = true }
+            )
+            .padding(.horizontal, 24)
+            // Downward arrow centered on screen — points to the bolt (middle tab)
+            DownwardTriangle()
+                .fill(Color(onboardingHex: "1e3a8a"))
+                .frame(width: 20, height: 11)
+                .padding(.top, 0)
+            Spacer().frame(height: 90)
+        }
+    }
+
+    private struct DownwardTriangle: Shape {
+        func path(in rect: CGRect) -> Path {
+            Path { p in
+                p.move(to: CGPoint(x: rect.minX, y: rect.minY))
+                p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+                p.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+                p.closeSubpath()
+            }
+        }
     }
 
     // MARK: - Surge tab CTA

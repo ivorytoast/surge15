@@ -14,7 +14,7 @@ let hiddenBuiltinExercisesKey = "hiddenBuiltinExercises"
 
 private enum SettingsHelp: Identifiable {
     case countdown, autoRest
-    case routes, groups, exercises, presets
+    case routes, plans, groups, exercises, presets
     case importRoute
 
     var id: Self { self }
@@ -24,6 +24,7 @@ private enum SettingsHelp: Identifiable {
         case .countdown:  "Countdown"
         case .autoRest:   "Rest Duration"
         case .routes:     "Routes"
+        case .plans:      "Plans"
         case .groups:     "Groups"
         case .exercises:  "Exercises"
         case .presets:    "Presets"
@@ -39,6 +40,8 @@ private enum SettingsHelp: Identifiable {
             "The length of the automatic rest break inserted between exercises in Auto mode. Tap 'Start Now' on the timer to skip it early."
         case .routes:
             "View and manage your saved GPS routes. You can rename or permanently delete any route."
+        case .plans:
+            "View and manage your plans. You can rename or permanently delete any plan and its exercises."
         case .groups:
             "Organize your plans into groups. Rename a group, change its color, add or remove plans, or delete the group without losing its plans."
         case .exercises:
@@ -99,6 +102,14 @@ struct SettingsHomeView: View {
                             RouteLibraryView()
                         } label: {
                             Label("Routes", systemImage: "map")
+                        }
+                    }
+                    HStack(spacing: 12) {
+                        infoButton(.plans)
+                        NavigationLink {
+                            PlanLibraryView()
+                        } label: {
+                            Label("Plans", systemImage: "list.clipboard")
                         }
                     }
                     HStack(spacing: 12) {

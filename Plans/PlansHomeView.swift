@@ -266,6 +266,9 @@ struct PlansHomeView: View {
     @Query(sort: \PlanGroup.createdAt, order: .reverse) private var groups: [PlanGroup]
     @Query(sort: \Plan.createdAt, order: .reverse) private var allPlans: [Plan]
 
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding: Bool = false
+    @AppStorage("onboardingPhase") private var onboardingPhase: Int = 0
+
     @State private var showingCreateGroup = false
     @State private var showingCreatePlan  = false
 
@@ -310,15 +313,26 @@ struct PlansHomeView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Menu {
-                        Button { showingCreateGroup = true } label: {
-                            Label("New Group", systemImage: "folder.badge.plus")
+                    if !hasSeenOnboarding && onboardingPhase == 3 {
+                        Button {
+                            onboardingPhase = 4
+                            showingCreatePlan = true
+                        } label: {
+                            Image(systemName: "plus")
+                                .foregroundStyle(Color.accentColor)
                         }
-                        Button { showingCreatePlan = true } label: {
-                            Label("New Plan", systemImage: "doc.badge.plus")
+                    } else {
+                        Menu {
+                            Button { showingCreateGroup = true } label: {
+                                Label("New Group", systemImage: "folder.badge.plus")
+                            }
+                            Button { showingCreatePlan = true } label: {
+                                Label("New Plan", systemImage: "doc.badge.plus")
+                            }
+                        } label: {
+                            Image(systemName: "plus")
+                                .foregroundStyle(Color.accentColor)
                         }
-                    } label: {
-                        Image(systemName: "plus")
                     }
                 }
             }
@@ -331,9 +345,92 @@ struct PlansHomeView: View {
             .sheet(isPresented: $showingCreateGroup) {
                 CreatePlanGroupView()
             }
-            .sheet(isPresented: $showingCreatePlan) {
+            .sheet(isPresented: $showingCreatePlan, onDismiss: {
+                if !hasSeenOnboarding && onboardingPhase == 4 {
+                    onboardingPhase = 5
+                }
+            }) {
                 CreatePlanView()
             }
+            .onAppear {
+                sanitizeGroupNames()
+                sanitizePlanNames()
+            }
+            .onChange(of: groups.map(\.name)) { sanitizeGroupNames() }
+            .onChange(of: allPlans.map(\.name)) { sanitizePlanNames() }
+            .overlay {
+                if !hasSeenOnboarding && onboardingPhase == 3 {
+                    plansOnboardingOverlay
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeOut(duration: 0.2), value: !hasSeenOnboarding && onboardingPhase == 3)
+        }
+    }
+
+    // MARK: - Onboarding overlay (phase 3)
+
+    private var plansOnboardingOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.65)
+                .ignoresSafeArea(edges: .bottom)
+
+            VStack {
+                HStack(alignment: .top) {
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 0) {
+                        UpwardTriangle()
+                            .fill(Color(onboardingHex: "1e3a8a"))
+                            .frame(width: 20, height: 11)
+                            .padding(.trailing, 18)
+                        OnboardingCallout(
+                            title: "Build Your First Plan",
+                            message: "Tap + to get started — we'll walk you through what you can create."
+                        )
+                    }
+                    .padding(.top, 6)
+                    .padding(.trailing, 10)
+                    .padding(.leading, 20)
+                }
+
+                Spacer()
+
+                Button("Skip tutorial") {
+                    hasSeenOnboarding = true
+                }
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(Color(onboardingHex: "60a5fa"))
+                .padding(.horizontal, 24)
+                .padding(.vertical, 10)
+                .background(Color(onboardingHex: "1e3a8a"), in: Capsule())
+                .overlay(Capsule().strokeBorder(Color(onboardingHex: "60a5fa").opacity(0.5), lineWidth: 1))
+                .shadow(color: .black.opacity(0.35), radius: 8, y: 2)
+                .padding(.bottom, 28)
+            }
+        }
+        .allowsHitTesting(true)
+    }
+
+    private struct UpwardTriangle: Shape {
+        func path(in rect: CGRect) -> Path {
+            Path { p in
+                p.move(to: CGPoint(x: rect.midX, y: rect.minY))
+                p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+                p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+                p.closeSubpath()
+            }
+        }
+    }
+
+    private func sanitizeGroupNames() {
+        for group in groups where group.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            group.name = "Untitled Group"
+        }
+    }
+
+    private func sanitizePlanNames() {
+        for plan in allPlans where plan.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            plan.name = "Untitled Plan"
         }
     }
 

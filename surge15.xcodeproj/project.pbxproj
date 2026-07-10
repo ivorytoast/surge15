@@ -35,6 +35,8 @@
 		95E3E8A02FF4D02700604398 /* SurgeIntentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95E3E89F2FF4D02700604398 /* SurgeIntentView.swift */; };
 		95E3E8A72FF4DF1F00604398 /* PresetStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95E3E8A62FF4DF1F00604398 /* PresetStorage.swift */; };
 		95E3E8A92FF4DF2700604398 /* PresetEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95E3E8A82FF4DF2700604398 /* PresetEditorView.swift */; };
+		95EF84D130007A0F00E26986 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95EF84D030007A0F00E26986 /* OnboardingView.swift */; };
+		95EF84D3300084C600E26986 /* PlanLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95EF84D2300084C600E26986 /* PlanLibraryView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -86,6 +88,8 @@
 		95E3E89F2FF4D02700604398 /* SurgeIntentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurgeIntentView.swift; sourceTree = "<group>"; };
 		95E3E8A62FF4DF1F00604398 /* PresetStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetStorage.swift; sourceTree = "<group>"; };
 		95E3E8A82FF4DF2700604398 /* PresetEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetEditorView.swift; sourceTree = "<group>"; };
+		95EF84D030007A0F00E26986 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		95EF84D2300084C600E26986 /* PlanLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanLibraryView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -158,6 +162,7 @@
 				95E3E8A12FF4D1E500604398 /* Settings */,
 				95E3E8A22FF4D20600604398 /* Core */,
 				956BEB992FFB06BF0029EEED /* GremlinKit.swift */,
+				95EF84D030007A0F00E26986 /* OnboardingView.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -225,6 +230,7 @@
 				95E3E8A82FF4DF2700604398 /* PresetEditorView.swift */,
 				954AF9E52FF9BEDA00F1AE0D /* RouteLibraryView.swift */,
 				954AF9E72FF9C04E00F1AE0D /* GroupLibraryView.swift */,
+				95EF84D2300084C600E26986 /* PlanLibraryView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -394,6 +400,7 @@
 				956D4B342FE77E6D0024B101 /* PlanDetailView.swift in Sources */,
 				95E3E89A2FF4CDC000604398 /* Quotes.swift in Sources */,
 				95E3E8972FF4CCC400604398 /* RoutesHomeView.swift in Sources */,
+				95EF84D130007A0F00E26986 /* OnboardingView.swift in Sources */,
 				955E70762FEB2311000C2792 /* ExerciseLibraryView.swift in Sources */,
 				95E3E8A02FF4D02700604398 /* SurgeIntentView.swift in Sources */,
 				956D4B2A2FE76EDC0024B101 /* EditRouteView.swift in Sources */,
@@ -401,6 +408,7 @@
 				956D4B3A2FE78A010024B101 /* SegmentDirection.swift in Sources */,
 				954AF9E82FF9C04E00F1AE0D /* GroupLibraryView.swift in Sources */,
 				956D4B202FE740190024B101 /* CreateRouteView.swift in Sources */,
+				95EF84D3300084C600E26986 /* PlanLibraryView.swift in Sources */,
 				956D4B322FE77E600024B101 /* CreatePlanView.swift in Sources */,
 				956D4B302FE77E4F0024B101 /* PlansHomeView.swift in Sources */,
 				956BEB9A2FFB06BF0029EEED /* GremlinKit.swift in Sources */,
@@ -572,7 +580,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = CV6V8EV5NQ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -591,7 +599,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.software78.surge15;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -614,7 +622,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = CV6V8EV5NQ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -633,7 +641,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.software78.surge15;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;

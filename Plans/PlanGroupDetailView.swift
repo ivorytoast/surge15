@@ -81,6 +81,8 @@ struct PlanGroupDetailView: View {
         }
         .navigationTitle(group.name)
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { sanitizePlanNames() }
+        .onChange(of: group.plans.map(\.name)) { sanitizePlanNames() }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -126,6 +128,14 @@ struct PlanGroupDetailView: View {
             Button("Cancel", role: .cancel) { deletingPlan = nil }
         } message: {
             Text("Are you sure you want to delete \"\(deletingPlan?.name ?? "")\"? This cannot be undone.")
+        }
+    }
+
+    // MARK: - Sanitization
+
+    private func sanitizePlanNames() {
+        for plan in group.plans where plan.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            plan.name = "Untitled Plan"
         }
     }
 

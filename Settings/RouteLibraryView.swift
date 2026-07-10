@@ -20,6 +20,7 @@ struct RouteLibraryView: View {
             ForEach(routes) { route in
                 HStack {
                     Button {
+                        guard editMode?.wrappedValue != .active else { return }
                         renamingRoute = route
                         newName = route.name
                     } label: {

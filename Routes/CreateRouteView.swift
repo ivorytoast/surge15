@@ -16,6 +16,9 @@ struct CreateRouteView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding: Bool = false
+    @AppStorage("onboardingPhase") private var onboardingPhase: Int = 0
+
     @State private var tracker = LocationTracker()
     @State private var cameraPosition: MapCameraPosition = .userLocation(fallback: .automatic)
 
@@ -30,6 +33,7 @@ struct CreateRouteView: View {
 
     @State private var showingSavePrompt = false
     @State private var showingTooShortAlert = false
+    @State private var showingOnboardingRecordAlert = false
     @State private var routeName = ""
 
     private let minimumDistanceMeters: Double = 10
@@ -53,8 +57,16 @@ struct CreateRouteView: View {
                 }
                 .padding(.bottom, 22)
 
-                if isAcquiringGPS {
+                if isLocationDenied {
+                    locationDeniedOverlay
+                        .transition(.opacity)
+                } else if isAcquiringGPS {
                     acquiringOverlay
+                        .transition(.opacity)
+                }
+
+                if !hasSeenOnboarding && onboardingPhase == 2 {
+                    createRouteOnboardingOverlay
                         .transition(.opacity)
                 }
             }
@@ -66,6 +78,7 @@ struct CreateRouteView: View {
                         isRecording = false
                         dismiss()
                     }
+                    .disabled(!hasSeenOnboarding && onboardingPhase == 2)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     recordButton
@@ -82,6 +95,11 @@ struct CreateRouteView: View {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text("A route must be at least \(Int(minimumDistanceMeters)) m. You captured \(Formatters.distance(currentDistance)). Tap Record to try again.")
+            }
+            .alert("You Are Still In The Tutorial!", isPresented: $showingOnboardingRecordAlert) {
+                Button("Got It", role: .cancel) { }
+            } message: {
+                Text("You can not create a route during the tutorial. Once the tutorial is finished or skipped, come back right here to record your first route.")
             }
             .onAppear {
                 tracker.requestAuthorization()
@@ -132,7 +150,15 @@ struct CreateRouteView: View {
     }
 
     private var distancePill: some View {
-        Text(Formatters.distance(currentDistance))
+        VStack(alignment: .leading, spacing: 6) {
+            unitPill(Formatters.distance(currentDistance))
+            unitPill(String(format: "%.2f mi", currentDistance * 0.000621371))
+            unitPill(String(format: "%.0f yd", currentDistance * 1.09361))
+        }
+    }
+
+    private func unitPill(_ text: String) -> some View {
+        Text(text)
             .font(.system(.title2, design: .rounded, weight: .heavy))
             .monospacedDigit()
             .foregroundStyle(.white)
@@ -209,7 +235,7 @@ struct CreateRouteView: View {
     // MARK: - Toolbar record button
 
     private var recordButton: some View {
-        Button {
+        return Button {
             handleRecordTap()
         } label: {
             HStack(spacing: 6) {
@@ -224,10 +250,18 @@ struct CreateRouteView: View {
             .background(Color.red, in: Capsule())
         }
         .buttonStyle(.plain)
-        .disabled(isAcquiringGPS)
+        .disabled(isAcquiringGPS || isLocationDenied)
+    }
+
+    private var isLocationDenied: Bool {
+        tracker.authorizationStatus == .denied || tracker.authorizationStatus == .restricted
     }
 
     private func handleRecordTap() {
+        if !hasSeenOnboarding && onboardingPhase == 2 {
+            showingOnboardingRecordAlert = true
+            return
+        }
         if isRecording {
             stopRecording()
             if meetsMinimum {
@@ -254,6 +288,115 @@ struct CreateRouteView: View {
                     .font(.callout)
                     .foregroundStyle(.white.opacity(0.85))
             }
+        }
+    }
+
+    private var createRouteOnboardingOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.65)
+                .ignoresSafeArea(edges: .bottom)
+
+            VStack {
+                HStack(alignment: .top) {
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 0) {
+                        UpwardTriangle()
+                            .fill(Color(onboardingHex: "1e3a8a"))
+                            .frame(width: 20, height: 11)
+                            .padding(.trailing, 38)
+                        OnboardingCallout(
+                            title: "This Is Where You Record",
+                            message: "Keep your loop short — the shorter, the more versatile your plans.\n\nFinish the tutorial first, then come back here when you're ready to record.",
+                            buttonTitle: "Learn About Plans",
+                            gotItAction: {
+                                onboardingPhase = 3
+                                dismiss()
+                            }
+                        )
+                    }
+                    .padding(.top, 6)
+                    .padding(.trailing, 10)
+                    .padding(.leading, 20)
+                }
+
+                Spacer()
+
+                Button("Skip tutorial") {
+                    hasSeenOnboarding = true
+                }
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(Color(onboardingHex: "60a5fa"))
+                .padding(.horizontal, 24)
+                .padding(.vertical, 10)
+                .background(Color(onboardingHex: "1e3a8a"), in: Capsule())
+                .overlay(Capsule().strokeBorder(Color(onboardingHex: "60a5fa").opacity(0.5), lineWidth: 1))
+                .shadow(color: .black.opacity(0.35), radius: 8, y: 2)
+                .padding(.bottom, 28)
+            }
+        }
+    }
+
+    private struct UpwardTriangle: Shape {
+        func path(in rect: CGRect) -> Path {
+            Path { p in
+                p.move(to: CGPoint(x: rect.midX, y: rect.minY))
+                p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+                p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+                p.closeSubpath()
+            }
+        }
+    }
+
+    private var locationDeniedOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.88).ignoresSafeArea()
+            VStack(spacing: 24) {
+                Image(systemName: "location.slash.fill")
+                    .font(.system(size: 52))
+                    .foregroundStyle(.white)
+
+                VStack(spacing: 10) {
+                    Text("Location Access Required")
+                        .font(.title2.bold())
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+
+                    Text("Surge needs your location to record your route and measure its distance. Without it, recording isn't possible.")
+                        .font(.callout)
+                        .foregroundStyle(.white.opacity(0.85))
+                        .multilineTextAlignment(.center)
+                }
+
+                VStack(spacing: 8) {
+                    Text("Your Privacy")
+                        .font(.caption.bold())
+                        .tracking(1)
+                        .foregroundStyle(.blue)
+
+                    Text("Surge does not store or share your GPS data unless you explicitly share a route with someone. Even then, it's sent as an anonymous code — never associated with your name or account.")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(3)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+
+                Button {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
+                    Label("Open Settings", systemImage: "gear")
+                        .font(.headline)
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 28)
+                        .padding(.vertical, 14)
+                        .background(Color.white, in: Capsule())
+                }
+            }
+            .padding(28)
         }
     }
 
