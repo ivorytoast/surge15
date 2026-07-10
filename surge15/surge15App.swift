@@ -32,6 +32,13 @@ struct surge15App: App {
         }
     }()
 
+    #if DEBUG
+    init() {
+        UserDefaults.standard.set(0, forKey: "onboardingPhase")
+        UserDefaults.standard.set(false, forKey: "hasSeenOnboarding")
+    }
+    #endif
+
     var body: some Scene {
         WindowGroup {
             RootView()

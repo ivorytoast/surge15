@@ -266,6 +266,9 @@ struct PlansHomeView: View {
     @Query(sort: \PlanGroup.createdAt, order: .reverse) private var groups: [PlanGroup]
     @Query(sort: \Plan.createdAt, order: .reverse) private var allPlans: [Plan]
 
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding: Bool = false
+    @AppStorage("onboardingPhase") private var onboardingPhase: Int = 0
+
     @State private var showingCreateGroup = false
     @State private var showingCreatePlan  = false
 
@@ -319,6 +322,7 @@ struct PlansHomeView: View {
                         }
                     } label: {
                         Image(systemName: "plus")
+                            .foregroundStyle(Color.accentColor)
                     }
                 }
             }
@@ -340,6 +344,70 @@ struct PlansHomeView: View {
             }
             .onChange(of: groups.map(\.name)) { sanitizeGroupNames() }
             .onChange(of: allPlans.map(\.name)) { sanitizePlanNames() }
+            .overlay {
+                if !hasSeenOnboarding && onboardingPhase == 3 {
+                    plansOnboardingOverlay
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeOut(duration: 0.2), value: !hasSeenOnboarding && onboardingPhase == 3)
+        }
+    }
+
+    // MARK: - Onboarding overlay (phase 3)
+
+    private var plansOnboardingOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.65)
+                .ignoresSafeArea(edges: .bottom)
+
+            VStack {
+                HStack(alignment: .top) {
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 0) {
+                        UpwardTriangle()
+                            .fill(Color(onboardingHex: "1e3a8a"))
+                            .frame(width: 20, height: 11)
+                            .padding(.trailing, 18)
+                        OnboardingCallout(
+                            title: "Build Your First Plan",
+                            message: "Tap + then 'New Plan' to create a structured workout. A plan is a sequence of exercises — runs, lifts, rows, whatever fits your session.\n\nWhen you're ready to train, just tap the bolt and select your plan.",
+                            gotItAction: {
+                                onboardingPhase = 4
+                            }
+                        )
+                    }
+                    .padding(.top, 6)
+                    .padding(.trailing, 10)
+                    .padding(.leading, 20)
+                }
+
+                Spacer()
+
+                Button("Skip tutorial") {
+                    hasSeenOnboarding = true
+                }
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(Color(onboardingHex: "60a5fa"))
+                .padding(.horizontal, 24)
+                .padding(.vertical, 10)
+                .background(Color(onboardingHex: "1e3a8a"), in: Capsule())
+                .overlay(Capsule().strokeBorder(Color(onboardingHex: "60a5fa").opacity(0.5), lineWidth: 1))
+                .shadow(color: .black.opacity(0.35), radius: 8, y: 2)
+                .padding(.bottom, 28)
+            }
+        }
+        .allowsHitTesting(true)
+    }
+
+    private struct UpwardTriangle: Shape {
+        func path(in rect: CGRect) -> Path {
+            Path { p in
+                p.move(to: CGPoint(x: rect.midX, y: rect.minY))
+                p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+                p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+                p.closeSubpath()
+            }
         }
     }
 

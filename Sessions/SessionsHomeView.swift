@@ -170,23 +170,24 @@ struct CalendarMonthView: View {
     private var monthHeader: some View {
         HStack {
             Text(displayedMonth.formatted(.dateTime.month(.wide).year()))
-                .font(.title3.bold())
+                .font(.title2.bold())
             Spacer()
             Button {
                 changeMonth(-1)
             } label: {
                 Image(systemName: "chevron.left")
-                    .font(.body.weight(.semibold))
-                    .frame(width: 32, height: 32)
+                    .font(.title2.weight(.semibold))
+                    .frame(width: 44, height: 44)
             }
             Button {
                 changeMonth(1)
             } label: {
                 Image(systemName: "chevron.right")
-                    .font(.body.weight(.semibold))
-                    .frame(width: 32, height: 32)
+                    .font(.title2.weight(.semibold))
+                    .frame(width: 44, height: 44)
             }
         }
+        .padding(.bottom, 8)
     }
 
     private var weekdayHeader: some View {

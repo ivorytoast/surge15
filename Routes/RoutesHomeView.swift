@@ -66,7 +66,11 @@ struct RoutesHomeView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Query(sort: \Route.createdAt, order: .reverse) private var routes: [Route]
 
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding: Bool = false
+    @AppStorage("onboardingPhase") private var onboardingPhase: Int = 0
+
     @State private var showingCreateRoute = false
+    @State private var showingLocationRequired = false
 
     @State private var viewMode: HomeViewMode = .map
     @State private var tracker = LocationTracker()
@@ -166,8 +170,22 @@ struct RoutesHomeView: View {
             } message: {
                 Text("Are you sure you want to delete \"\(deletingRoute?.name ?? "")\"? This cannot be undone.")
             }
-            .sheet(isPresented: $showingCreateRoute) {
+            .sheet(isPresented: $showingCreateRoute, onDismiss: {
+                if !hasSeenOnboarding && onboardingPhase == 2 {
+                    onboardingPhase = 3
+                }
+            }) {
                 CreateRouteView()
+            }
+            .alert("Location Access Required", isPresented: $showingLocationRequired) {
+                Button("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Surge needs your location to record and measure routes.\n\nYour GPS data is never stored or shared unless you explicitly send a route to someone — and even then it's an anonymous code, not tied to your name or account.")
             }
             .onAppear {
                 tracker.requestAuthorization()
@@ -176,6 +194,13 @@ struct RoutesHomeView: View {
             .onChange(of: tracker.recordedLocations.count) { _, _ in
                 centerOnUserIfNeeded()
             }
+            .overlay {
+                if !hasSeenOnboarding && onboardingPhase == 1 {
+                    routesOnboardingOverlay
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeOut(duration: 0.2), value: !hasSeenOnboarding && onboardingPhase == 1)
         }
     }
 
@@ -215,7 +240,16 @@ struct RoutesHomeView: View {
         }
         ToolbarItem(placement: .topBarTrailing) {
             Button {
-                showingCreateRoute = true
+                let denied = tracker.authorizationStatus == .denied
+                             || tracker.authorizationStatus == .restricted
+                if denied {
+                    showingLocationRequired = true
+                } else {
+                    if !hasSeenOnboarding && onboardingPhase == 1 {
+                        onboardingPhase = 2
+                    }
+                    showingCreateRoute = true
+                }
             } label: {
                 Image(systemName: "plus")
                     .foregroundStyle(routes.isEmpty ? Color.blue : Color.accentColor)
@@ -457,6 +491,61 @@ struct RoutesHomeView: View {
         .contentShape(Rectangle())
         .onTapGesture {
             viewMode = .list
+        }
+    }
+
+    // MARK: - Onboarding overlay (phase 1)
+
+    private var routesOnboardingOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.65)
+                .ignoresSafeArea(edges: .bottom)
+
+            VStack {
+                HStack(alignment: .top) {
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 0) {
+                        // Arrow points up toward the + button in the trailing toolbar
+                        UpwardTriangle()
+                            .fill(Color(onboardingHex: "1e3a8a"))
+                            .frame(width: 20, height: 11)
+                            .padding(.trailing, 18)
+                        OnboardingCallout(
+                            title: "Want To See How To Create Your First Route?",
+                            message: "Tap + to see!"
+                        )
+                    }
+                    .padding(.top, 6)
+                    .padding(.trailing, 10)
+                    .padding(.leading, 20)
+                }
+
+                Spacer()
+
+                Button("Skip tutorial") {
+                    hasSeenOnboarding = true
+                }
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(Color(onboardingHex: "60a5fa"))
+                .padding(.horizontal, 24)
+                .padding(.vertical, 10)
+                .background(Color(onboardingHex: "1e3a8a"), in: Capsule())
+                .overlay(Capsule().strokeBorder(Color(onboardingHex: "60a5fa").opacity(0.5), lineWidth: 1))
+                .shadow(color: .black.opacity(0.35), radius: 8, y: 2)
+                .padding(.bottom, 28)
+            }
+        }
+        .allowsHitTesting(true)
+    }
+
+    private struct UpwardTriangle: Shape {
+        func path(in rect: CGRect) -> Path {
+            Path { p in
+                p.move(to: CGPoint(x: rect.midX, y: rect.minY))
+                p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+                p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+                p.closeSubpath()
+            }
         }
     }
 
