@@ -69,7 +69,7 @@ They may have limited space. They definitely have a specific goal. And they want
 - **No friction at start.** When it's time to train, getting into a session should take seconds. The bolt tab is the hub — everything starts there.
 - **The math is invisible.** Lap counting, distance conversion, exercise sequencing — Surge handles all of it.
 - **Small spaces are valid.** The app should never make you feel like you need a "real" track or a "real" gym.
-- **You choose the anchor.** Your favorite park, a local gym, the beach — wherever functional work is possible, that's your starting point. Surge adapts to you, not the other way around.
+- **You choose the anchor.** Your favorite park, a sports field, the beach — wherever functional work is possible, that's your starting point.
 
 ---
 
@@ -90,3 +90,6 @@ The onboarding flow uses these core messages, in order:
 ### Language rules for all user-facing copy
 - Never use: "ethos", "hybrid athlete", "friend's garage"
 - Keep the anchor metaphor: park, gym, beach — any place where functional work is possible
+
+## Some other thoughts
+- Making running a first class citizen of functional training

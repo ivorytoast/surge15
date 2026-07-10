@@ -111,6 +111,14 @@ struct RootView: View {
             if !isActive { showingSurgeDetail = false }
         }
         .onChange(of: selectedTab) { _, new in
+            if !hasSeenOnboarding && onboardingPhase == 1 && new != routesTab {
+                selectedTab = routesTab
+                return
+            }
+            if !hasSeenOnboarding && onboardingPhase == 3 && new != planTab {
+                selectedTab = planTab
+                return
+            }
             if new == surgeTab {
                 handleSurgeTap()
             } else {
@@ -124,13 +132,13 @@ struct RootView: View {
                 .transition(.opacity)
         }
 
-        if !hasSeenOnboarding && onboardingPhase == 4 {
+        if !hasSeenOnboarding && onboardingPhase == 5 {
             surgeTabOnboardingOverlay
                 .transition(.opacity)
         }
         } // end ZStack
         .animation(.easeOut(duration: 0.25), value: !hasSeenOnboarding && onboardingPhase == 0)
-        .animation(.easeOut(duration: 0.25), value: !hasSeenOnboarding && onboardingPhase == 4)
+        .animation(.easeOut(duration: 0.25), value: !hasSeenOnboarding && onboardingPhase == 5)
         .onChange(of: onboardingPhase) { _, phase in
             if phase == 1 {
                 selectedTab = routesTab
@@ -140,20 +148,20 @@ struct RootView: View {
                 selectedTab = planTab
                 lastValidTab = planTab
             }
-            if phase == 4 {
+            if phase == 5 {
                 selectedTab = planTab
                 lastValidTab = planTab
             }
         }
     }
 
-    // MARK: - Onboarding overlay (phase 4)
+    // MARK: - Onboarding overlay (phase 5)
 
     private var surgeTabOnboardingOverlay: some View {
         VStack(spacing: 0) {
             Spacer()
             OnboardingCallout(
-                title: "Surge!",
+                title: "You Finished The Tutorial!",
                 message: "Tap the surge bolt to run a route or execute a plan.",
                 gotItAction: { hasSeenOnboarding = true }
             )

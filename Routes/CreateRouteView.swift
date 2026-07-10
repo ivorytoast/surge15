@@ -78,6 +78,7 @@ struct CreateRouteView: View {
                         isRecording = false
                         dismiss()
                     }
+                    .disabled(!hasSeenOnboarding && onboardingPhase == 2)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     recordButton

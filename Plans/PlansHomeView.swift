@@ -313,16 +313,26 @@ struct PlansHomeView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Menu {
-                        Button { showingCreateGroup = true } label: {
-                            Label("New Group", systemImage: "folder.badge.plus")
+                    if !hasSeenOnboarding && onboardingPhase == 3 {
+                        Button {
+                            onboardingPhase = 4
+                            showingCreatePlan = true
+                        } label: {
+                            Image(systemName: "plus")
+                                .foregroundStyle(Color.accentColor)
                         }
-                        Button { showingCreatePlan = true } label: {
-                            Label("New Plan", systemImage: "doc.badge.plus")
+                    } else {
+                        Menu {
+                            Button { showingCreateGroup = true } label: {
+                                Label("New Group", systemImage: "folder.badge.plus")
+                            }
+                            Button { showingCreatePlan = true } label: {
+                                Label("New Plan", systemImage: "doc.badge.plus")
+                            }
+                        } label: {
+                            Image(systemName: "plus")
+                                .foregroundStyle(Color.accentColor)
                         }
-                    } label: {
-                        Image(systemName: "plus")
-                            .foregroundStyle(Color.accentColor)
                     }
                 }
             }
@@ -335,7 +345,11 @@ struct PlansHomeView: View {
             .sheet(isPresented: $showingCreateGroup) {
                 CreatePlanGroupView()
             }
-            .sheet(isPresented: $showingCreatePlan) {
+            .sheet(isPresented: $showingCreatePlan, onDismiss: {
+                if !hasSeenOnboarding && onboardingPhase == 4 {
+                    onboardingPhase = 5
+                }
+            }) {
                 CreatePlanView()
             }
             .onAppear {
@@ -371,10 +385,7 @@ struct PlansHomeView: View {
                             .padding(.trailing, 18)
                         OnboardingCallout(
                             title: "Build Your First Plan",
-                            message: "Tap + then 'New Plan' to create a structured workout. A plan is a sequence of exercises — runs, lifts, rows, whatever fits your session.\n\nWhen you're ready to train, just tap the bolt and select your plan.",
-                            gotItAction: {
-                                onboardingPhase = 4
-                            }
+                            message: "Tap + to get started — we'll walk you through what you can create."
                         )
                     }
                     .padding(.top, 6)
