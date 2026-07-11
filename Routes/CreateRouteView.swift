@@ -305,8 +305,8 @@ struct CreateRouteView: View {
                             .frame(width: 20, height: 11)
                             .padding(.trailing, 38)
                         OnboardingCallout(
-                            title: "This Is Where You Record",
-                            message: "Keep your loop short — the shorter, the more versatile your plans.\n\nFinish the tutorial first, then come back here when you're ready to record.",
+                            title: "Route Creation",
+                            message: "Keep your loop short — the shorter, the more versatile your plans.\n\nWhen you're ready, come back here to record your first route.",
                             buttonTitle: "Learn About Plans",
                             gotItAction: {
                                 onboardingPhase = 3

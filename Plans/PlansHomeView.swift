@@ -385,7 +385,7 @@ struct PlansHomeView: View {
                             .padding(.trailing, 18)
                         OnboardingCallout(
                             title: "Build Your First Plan",
-                            message: "Tap + to get started — we'll walk you through what you can create."
+                            message: "Tap the '+' button to get started!"
                         )
                     }
                     .padding(.top, 6)

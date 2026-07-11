@@ -1,0 +1,626 @@
+"Most fitness apps follow you. Surge starts from where you already are."
+
+You've got a spot. A park, a sports field, a stretch of beach — somewhere accessible to train. But there is an issue. GPS trackers assume you're going somewhere new. Workout apps ignore the running entirely.
+
+Surge is built for the in-between: the person who wants to run their 500m loop four times, knock out 20 burpees, run it again, and track if they're getting better at the whole thing — not just the run, not just the reps, but the complete session.
+
+Two things. A route. A plan. Nothing left but to Surge.
+
+
+
+
+# surge15 — All User-Facing Strings
+
+---
+
+# OnboardingView
+
+Train Where You Are
+Functional training and running rarely share the same space. Pick your anchor point — a park, a sports field, a stretch of beach — and everything starts from there.
+Anywhere. Your Track. Surge.
+Two Building Blocks
+Routes
+Record the shortest loop near your spot once. Surge takes care of the rest.
+Plans
+Want to combine functional workouts with your routes? Plans solve this.
+Next
+Get Started
+Got It
+
+---
+
+# RootView
+
+Routes
+Plans
+Surging
+Surge
+Sessions
+Settings
+You Finished The Tutorial!
+Tap the surge bolt to run a route or execute a plan.
+
+---
+
+# RoutesHomeView
+
+Map
+List
+Acquiring GPS Location
+Create Route
+Location Access Required
+Surge needs your location to record and measure routes.
+Your GPS data is never stored or shared unless you explicitly send a route to someone — and even then it's an anonymous code, not tied to your name or account.
+Open Settings
+No Routes Yet
+Create your first route with the blue + button above. Walk or run your personal track once so the app learns its shape.
+Closest Routes
+All Routes
+Switch to list view
+Switch to map view
+Center on my location
+Nearest Route
+away · tap to begin
+Tap + to see!
+Skip tutorial
+Want To See How To Create Your First Route?
+Location Unavailable
+Without your location, the map can't show where you are or pin your routes. Switch to the list view to see all your routes.
+Switch to List View
+Delete Route
+Are you sure you want to delete this route? This cannot be undone.
+Delete
+Cancel
+routes
+per lap
+away
+
+---
+
+# CreateRouteView
+
+New Route
+Cancel
+Record
+Stop
+Backyard 1k
+Name Your Route
+Give this loop a name. You'll train on it later.
+Save
+Discard
+Route Too Short
+A route must be at least [X] m. You captured [X]. Tap Record to try again.
+OK
+You Are Still In The Tutorial!
+You can not create a route during the tutorial. Once the tutorial is finished or skipped, come back right here to record your first route.
+Got It
+Acquiring GPS Location
+Hang tight for a moment…
+This Is Where You Record
+Keep your loop short — the shorter, the more versatile your plans.
+Finish the tutorial first, then come back here when you're ready to record.
+Learn About Plans
+Skip tutorial
+Location Access Required
+Surge needs your location to record your route and measure its distance. Without it, recording isn't possible.
+Your Privacy
+Surge does not store or share your GPS data unless you explicitly share a route with someone. Even then, it's sent as an anonymous code — never associated with your name or account.
+Open Settings
+
+---
+
+# EditRouteView
+
+Edit Route
+Name
+Route name
+Stats
+Distance
+Segments
+Sessions
+Created
+Delete Route
+Delete this route?
+This deletes the route and all of its [X] session(s). This can't be undone.
+Delete
+Cancel
+
+---
+
+# RoutePeekSheet
+
+Laps
+Meters
+
+---
+
+# PlansHomeView
+
+No Plans Yet
+Tap + to create a group or build a standalone plan.
+Groups
+All Plans
+New Group
+New Plan
+Build Your First Plan
+Tap + to get started — we'll walk you through what you can create.
+Skip tutorial
+Empty
+plan(s)
+exercise(s)
+Edit Color
+Done
+Ocean
+Forest
+Ember
+Rose
+Sunrise
+Sky
+Cherry
+Midnight
+Lime
+Neon
+Citrus
+Galaxy
+
+---
+
+# CreatePlanView
+
+New Plan
+Edit Plan
+Add Exercise
+Measure
+Off
+Laps
+Meters
+Pace target (optional)
+Time target (optional)
+None
+Plan Details
+Group
+Back
+Create
+Save
+Cancel
+Building a Plan
+Pick an exercise type at the top — Run, Lift, Row, and more. Use the chips below to set the quantity, then tap 'Add to Plan' to build your sequence.
+
+Explore freely — tap Continue when you're ready to move on.
+Continue
+Skip tutorial
+You can add plans to this group later.
+
+---
+
+# PlanDetailView
+
+Choose a Route
+Route · Not Required
+No routes yet — create one on the Routes tab first.
+No Route
+No runs in this plan
+No exercises in this plan.
+Exercises
+Start
+Ungrouped
+Groups
+Move to Group
+Cancel
+
+---
+
+# CreatePlanGroupView
+
+New Group
+Name
+Group Name
+Color
+0 plans
+Create
+Cancel
+
+---
+
+# PlanGroupDetailView
+
+Edit Plan
+Edit Color
+Rename Plan
+Move to Group
+Delete Plan
+Plan name
+Save
+Cancel
+Delete Plan
+Are you sure you want to delete this plan? This cannot be undone.
+Delete
+No Plans Yet
+Add plans to this group from the Plans tab.
+
+---
+
+# SessionsHomeView
+
+Get ready…
+
+---
+
+# SessionRecordingView
+
+From Beginning
+From End
+START AGAIN
+Pace
+Total Time
+/km
+Lap Time
+Elapsed
+to finish
+Lap by Lap
+BEST
+Session Saved
+All Laps Complete!
+Lap Complete!
+Distance Reached!
+Avg Pace
+Best Lap
+Avg Lap
+Target Laps
+Target
+distance
+lap(s)
+location
+Start
+Acquiring GPS…
+Stop
+Done
+Location access denied. Enable it in Settings to record a session.
+This route has no defined path.
+Get ready…
+GO!
+Countdown
+
+---
+
+# SessionDetailView
+
+Summary
+Started
+Ended
+Total Time
+Laps
+Distance
+Pace
+Points
+Lap Times
+
+---
+
+# SurgeSessionDetailView
+
+Workout Plan
+Exercises
+done
+Manual
+Auto
+Back
+Skip
+Start
+Start Now
+Pause
+Go
+Stop
+Tap + to add your first exercise.
+No exercises recorded.
+Skipped
+View details
+GPS Route Run
+My Exercises
+Built-in Exercises
+Add Exercise
+Cancel
+Configure Run
+Go to Start Line
+Reorder
+Completed / In Progress
+Up Next
+Can't Share Route
+Couldn't Share Route
+End this workout?
+You can still view this workout in the calendar.
+Enable Auto Mode?
+Auto Mode will immediately start your first exercise and automatically begin each following one after a rest period. Tap the timer to skip rest early.
+Let's Go!
+Workout Complete!
+Tap to dismiss
+
+---
+
+# SurgeIntentView
+
+Run a Route
+GPS-tracked laps on your personal loop
+No routes yet — go create one
+Execute a Plan
+Work through your structured workout
+No plans yet — go create one
+
+---
+
+# ExerciseRecordingView
+
+Start
+Measure
+Done
+Back to Workout
+Get Ready
+Cancel
+
+---
+
+# SettingsHomeView
+
+Settings
+Countdown
+Rest Duration
+Routes
+Plans
+Groups
+Exercises
+Presets
+Import Route
+Enter Share Code
+Ask the person sharing their route for the 8-character code.
+e.g. ABTDFYD3
+Import
+Import Failed
+Lap Presets
+Distance Presets
+Rep Presets
+Minute Presets
+Pace Presets
+Duration Presets
+
+---
+
+# ExerciseLibraryView
+
+Built-in Exercises
+Toggle to show or hide built-in exercises in the exercise picker.
+My Exercises
+Custom exercises appear in the exercise picker. Names are limited to 20 characters.
+Add Exercise
+Exercises
+Edit Exercise
+New Exercise
+Name & Icon
+Tap the icon to choose a different one.
+Measurement
+Select all that apply. Users can switch between them when recording.
+Choose Icon
+Cancel
+
+---
+
+# PresetEditorView
+
+Current Presets
+At least one preset is required.
+Add Preset
+Enter value
+Add
+Invalid Value
+Enter a valid number not already in the list.
+OK
+Lap Presets
+Pace Presets
+Duration Presets
+Rep Presets
+Minute Presets
+Distance Presets
+Reset
+
+---
+
+# RouteLibraryView
+
+Routes
+Rename Route
+Route Name
+Save
+Cancel
+Delete Route?
+This route and all its recorded sessions will be permanently deleted.
+Delete
+
+---
+
+# GroupLibraryView
+
+Groups
+plan(s)
+Name
+Color
+Plans
+No plans yet
+Tap to add or remove plans from this group. A plan can only belong to one group at a time.
+Delete Group
+Plans in this group will not be deleted — they'll simply be unassigned.
+Delete Group?
+This group will be removed. Its plans will be kept but unassigned.
+Delete
+Cancel
+
+---
+
+# PlanLibraryView
+
+Plans
+Rename Plan
+Plan Name
+Save
+Cancel
+Delete Plan?
+This plan and all its exercises will be permanently deleted.
+Delete
+
+---
+
+# Quotes (Calendar)
+
+Woah, you're already planning your workout for this day.
+Love the commitment. This day isn't even here yet.
+Scouting out future suffering. Respect.
+The future you is already lacing up. Probably.
+Bold of you to assume you'll want to on this day.
+Pencil it in. Then actually show up.
+A blank slate. Infinite potential. No excuses yet.
+Future you will either thank you or blame you for this.
+This day is wide open. Nice.
+Pre-regretting skipping this one. Smart.
+You're thinking about the future. The future is thinking back.
+All that free space just waiting for a surge.
+Looking ahead. We love to see it.
+How about a quick run? Or 2? Or 3? Or 4?
+The day isn't over yet. Just saying.
+One lap. That's all. One tiny lap.
+Future you is rooting for present you. Loudly.
+What if you laced up right now? Wild thought.
+You've done harder things before breakfast.
+The route isn't going to run itself. Yet.
+A ten-minute run beats a zero-minute run every time.
+Go outside. Touch grass. Then run past it.
+You could start right now and be done before this sinks in.
+Not too late. Never too late. Especially not right now.
+One session. One decision. Let's go.
+Your shoes are literally right there.
+The only bad workout is the one that didn't happen today.
+You didn't come this far to skip today.
+The run is short. The feeling after is long.
+Champion energy available. Currently unclaimed.
+Still today. Still time. Still you.
+The couch called. You answered every time.
+A+ for showing up. F for moving.
+Rest day, or just... day?
+Your sneakers are collecting dust and personality.
+Somewhere, a treadmill is crying.
+The only reps today were lifting the remote.
+You trained hard. At doing nothing.
+Officially a professional rester.
+The gym misses you. Probably.
+Netflix: 1. Workout: 0.
+Today's workout sponsored by: the couch.
+You looked outside and said nope. Valid.
+Invisible reps. They totally count.
+Strong choice to do absolutely nothing.
+Your body is a temple. Closed today.
+The weights lifted themselves. You weren't there to see it.
+Rest is training too. ...Probably.
+Every champion needs a cloud watching day.
+You burned calories blinking. That's something.
+You rested so hard. Respect.
+Officially fueling up for next time.
+Today: recovery mode. From what? Unclear.
+The road wasn't going anywhere. You matched its energy.
+Legs? Never heard of them.
+Zero steps taken. One hundred thoughts had.
+You thought about working out. That's like half.
+The bed was too comfy. A worthy opponent.
+Today's pace: glacial.
+Warming the bench like a pro.
+You did nothing today with incredible commitment.
+Peak performance at resting.
+The alarm went off. You negotiated. The alarm lost.
+Your future self is already judging this. Lovingly.
+Saving energy for something important. TBD.
+You were in the zone. The comfort zone.
+Olympic-level relaxation on display here.
+Somewhere, a protein shake went unmade.
+You took the scenic route: straight to the sofa.
+Today was brought to you by: zero effort.
+You thought about lunges. That's enough.
+The run will still be there tomorrow. Pinky promise.
+Resting face AND resting legs. Synergy.
+Even elite athletes have days like this. Probably.
+Today: 0 km. Confidence: unchanged.
+You looked at your running shoes and said: not today, friend.
+A bold day to do absolutely zip.
+Recovery is a strategy. You're very strategic.
+No sessions logged. Vibe preserved.
+You rested like it was your job. Nailed it.
+The track was out there. You were in here. Balance.
+You gave your muscles a vacation. They send their thanks.
+The burpees can wait. They're very patient.
+Today's training log: thoughts and prayers.
+Technically, breathing is cardio.
+You were at full power the whole time. Power to relax.
+Your running shoes sat by the door, hopeful.
+You took a step back. Literally.
+A true rest day: no guilt, no gains, no problem.
+The workout planned. The day laughed.
+Today's miles: 0. Today's memories: unclear.
+The road less traveled was, in fact, not traveled.
+Rest hard. Play harder. Workout... eventually.
+Today you trained your ability to not train.
+A skip day is just a future motivation origin story.
+You rested with intention. Very zen.
+Legend has it they were going to work out. But first, a nap.
+I see you. Putting in that work.
+The couch called. You didn't answer.
+Legs don't know it's leg day. Surprise them.
+You showed up. That's already 50% of it.
+Your future self is watching. Don't disappoint them.
+No one ever regretted a workout. Maybe one person...but who's counting?
+Sweat is just your body applauding itself.
+You vs. you. You're winning.
+The only bad workout is the one that didn't happen.
+The route isn't going to run itself.
+Your body can. Your brain is just being dramatic.
+Let's get this bread. And then burn it off.
+Today's discomfort is tomorrow's warm-up.
+You're here. The hard part is already done.
+Champions train on the days they don't want to.
+Pain is temporary. Screenshots of your stats are forever.
+Your muscles don't know it's early. Neither does your alarm. Go.
+Every kilometre you don't run, someone else is running it. Rude of them.
+Plot twist: you feel amazing after.
+You drove here. You might as well.
+Technically, blinking is cardio. But let's aim higher.
+Your heart wants to. Your legs will follow.
+You didn't come this far to only come this far.
+Somewhere, someone is using your motivation as their excuse not to go. Don't let them win.
+This is the part of the movie where you get up.
+Outrun your thoughts. There are a lot of them today.
+You've survived worse. You can survive a lap or two.
+Not all heroes wear capes. Some wear compression socks.
+The best time to work out was yesterday. The second best time is right now.
+One decision. One direction. One very sore tomorrow.
+Your body keeps the score. Make sure the score is good.
+Lace up. The route isn't going anywhere, but you should.
+You've been thinking about this all day. Now stop thinking.
+Discipline is just motivation with a better attendance record.
+Run like someone's watching. Because your future self is.
+The gym doesn't care about your feelings. But we do. Now go.
+You are one workout away from a good mood.
+Your legs have been waiting all day for this. They're excited. Trust them.
+The only person you need to be better than is last week's you.
+Surge. Then brunch. In that order.
+Go fast. Go slow. Just go.
+Your sneakers have been by the door all day, hopeful.
+The route has been patiently waiting. It's time.
+New body unlocked. It's on the other side of this workout.
+You are legally required to feel good after this. Look it up.
+Sometimes the hardest part is opening the app. Done. You win.
+Elite mindset. Amateur excuse count: zero.
+Later you will say: I'm glad I did that. Trust later you.
+You didn't skip. Iconic.
+Your GPS is locked. Your excuses are not.
+The burpees didn't do anything to you personally. Work it out.
+You opened the app. That's basically a workout.
+Science says exercise is good for you. Scientists don't skip either.
+Your legs: 'please no.' Your brain: 'I know.' You: starting the countdown anyway.
+Every step you take, every lap you make, I'll be logging it.
+Somewhere, a version of you who skipped is really sad right now.
+The only thing standing between you and done is you starting.
+You're not procrastinating. You're loading. Fully loaded. Let's go.

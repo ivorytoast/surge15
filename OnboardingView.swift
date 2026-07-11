@@ -82,7 +82,7 @@ private struct ConceptStepView: View {
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
 
-                Text("Functional training and running rarely share the same space. Pick your anchor point — a park, a sports field, a stretch of beach — and everything starts from there.")
+                Text("Your spot — a park, a field, a stretch of beach. Map your loop once, run it on repeat, mix in strength work, and see if you’re getting better at the whole session.")
                     .font(.system(size: 18))
                     .foregroundStyle(Color(onboardingHex: "c2cde4"))
                     .multilineTextAlignment(.center)
