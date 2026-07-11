@@ -21,6 +21,26 @@ enum Quotes {
         "You're thinking about the future. The future is thinking back.",
         "All that free space just waiting for a surge.",
         "Looking ahead. We love to see it.",
+
+        // MARK: - New
+        "This day has no idea what's coming.",
+        "Future you is already stretching.",
+        "A whole day of potential.",
+        "No excuses have been invented for this day yet.",
+        "You're either going to crush this or explain it. Plan now, decide later.",
+        "This day is a blank canvas. Don't paint a couch on it.",
+        "The route will be there. The question is whether you will.",
+        "Optimistic scheduling. Classic.",
+        "Your future self is nodding approvingly at this exact moment.",
+        "Zero regrets live here. It hasn't happened yet.",
+        "Still time to back out. But you won't. You're not like that.",
+        "The plan exists. Now it just needs legs. Literally.",
+        "Pre-commitment is 90% of the battle. You've already won something.",
+        "This date is circled. In your heart, if not on paper.",
+        "Future suffering, but make it scheduled.",
+        "You're investing in a version of yourself that doesn't skip.",
+        "The calendar says yes. The alarm clock will have questions.",
+        "That's a confident little tap on a future date. We respect it.",
     ]
 
     // MARK: - Calendar: today with no sessions (motivating nudge)

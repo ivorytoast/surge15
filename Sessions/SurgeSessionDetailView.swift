@@ -134,7 +134,6 @@ struct SurgeSessionDetailView: View {
     @State private var showingAutoModeConfirm = false
     @State private var showWorkoutComplete = false
     @AppStorage(hiddenBuiltinExercisesKey) private var hiddenBuiltinsRaw: String = ""
-    @State private var viewingSession: Session?
     /// Local-only skip stack — order tracked so Back can undo the last skip.
     @State private var skippedItems: [PersistentIdentifier] = []
     @State private var skippedPendingIDs: [UUID] = []
@@ -177,9 +176,6 @@ struct SurgeSessionDetailView: View {
                 ExerciseRecordingView(customName: req.name, customIcon: req.icon,
                                       measures: req.measures, targetValue: req.targetValue,
                                       surgeSession: surgeSession)
-            }
-            .sheet(item: $viewingSession) { session in
-                NavigationStack { SessionDetailView(session: session) }
             }
             .sheet(isPresented: $showingReorder) { reorderSheet }
             .navigationDestination(item: $routeForSetup) { route in
@@ -501,14 +497,6 @@ struct SurgeSessionDetailView: View {
                     }
                 }
 
-                if done, let s = matched {
-                    Button { viewingSession = s } label: {
-                        Text("View details")
-                            .font(.caption)
-                            .foregroundStyle(.blue)
-                    }
-                    .buttonStyle(.plain)
-                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.bottom, isLast ? 0 : 16)
@@ -537,12 +525,6 @@ struct SurgeSessionDetailView: View {
                 Text(resultText(session))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Button { viewingSession = session } label: {
-                    Text("View details")
-                        .font(.caption)
-                        .foregroundStyle(.blue)
-                }
-                .buttonStyle(.plain)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.bottom, isLast ? 0 : 16)
