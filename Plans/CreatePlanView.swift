@@ -172,7 +172,7 @@ struct CreatePlanView: View {
 
                 OnboardingCallout(
                     title: "Building a Plan",
-                    message: "Pick an exercise type at the top — Run, Lift, Row, and more. Use the chips below to set the quantity, then tap 'Add to Plan' to build your sequence.",
+                    message: "Pick an exercise type at the top — run, lunge, row, and more.\n\nUse the chips below to set the quantity, then tap 'Add to Plan' to build your sequence.",
                     buttonTitle: "Continue",
                     gotItAction: {
                         onboardingPhase = 5
@@ -180,6 +180,7 @@ struct CreatePlanView: View {
                     }
                 )
                 .padding(.horizontal, 24)
+                .padding(.bottom, 16)
 
                 Button("Skip tutorial") {
                     hasSeenOnboarding = true

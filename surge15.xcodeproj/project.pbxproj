@@ -18,7 +18,6 @@
 		956D4B1E2FE73FFF0024B101 /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B1D2FE73FFF0024B101 /* Formatters.swift */; };
 		956D4B202FE740190024B101 /* CreateRouteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B1F2FE740190024B101 /* CreateRouteView.swift */; };
 		956D4B242FE7404B0024B101 /* SessionRecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B232FE7404B0024B101 /* SessionRecordingView.swift */; };
-		956D4B262FE7405C0024B101 /* SessionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B252FE7405C0024B101 /* SessionDetailView.swift */; };
 		956D4B282FE76ECA0024B101 /* RoutePeekSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B272FE76ECA0024B101 /* RoutePeekSheet.swift */; };
 		956D4B2A2FE76EDC0024B101 /* EditRouteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B292FE76EDC0024B101 /* EditRouteView.swift */; };
 		956D4B2E2FE776790024B101 /* SurgeSessionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D4B2D2FE776790024B101 /* SurgeSessionDetailView.swift */; };
@@ -71,7 +70,6 @@
 		956D4B1D2FE73FFF0024B101 /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatters.swift; sourceTree = "<group>"; };
 		956D4B1F2FE740190024B101 /* CreateRouteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateRouteView.swift; sourceTree = "<group>"; };
 		956D4B232FE7404B0024B101 /* SessionRecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRecordingView.swift; sourceTree = "<group>"; };
-		956D4B252FE7405C0024B101 /* SessionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDetailView.swift; sourceTree = "<group>"; };
 		956D4B272FE76ECA0024B101 /* RoutePeekSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePeekSheet.swift; sourceTree = "<group>"; };
 		956D4B292FE76EDC0024B101 /* EditRouteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditRouteView.swift; sourceTree = "<group>"; };
 		956D4B2D2FE776790024B101 /* SurgeSessionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurgeSessionDetailView.swift; sourceTree = "<group>"; };
@@ -207,7 +205,6 @@
 			children = (
 				95E3E89C2FF4CE8D00604398 /* SessionsHomeView.swift */,
 				956D4B232FE7404B0024B101 /* SessionRecordingView.swift */,
-				956D4B252FE7405C0024B101 /* SessionDetailView.swift */,
 				956D4B2D2FE776790024B101 /* SurgeSessionDetailView.swift */,
 			);
 			path = Sessions;
@@ -394,7 +391,6 @@
 				956D4B1A2FE737E80024B101 /* LocationTracker.swift in Sources */,
 				956D4B282FE76ECA0024B101 /* RoutePeekSheet.swift in Sources */,
 				956D4B2E2FE776790024B101 /* SurgeSessionDetailView.swift in Sources */,
-				956D4B262FE7405C0024B101 /* SessionDetailView.swift in Sources */,
 				9591A3E32FF36D9F00CC8966 /* RouteShareService.swift in Sources */,
 				95DDDB602FE87FAA00BE2163 /* ExerciseRecordingView.swift in Sources */,
 				956D4B342FE77E6D0024B101 /* PlanDetailView.swift in Sources */,
@@ -580,7 +576,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = CV6V8EV5NQ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -622,7 +618,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = CV6V8EV5NQ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;

@@ -162,8 +162,12 @@ struct RootView: View {
             Spacer()
             OnboardingCallout(
                 title: "You Finished The Tutorial!",
-                message: "Tap the surge bolt to run a route or execute a plan.",
-                gotItAction: { hasSeenOnboarding = true }
+                message: "Head to the Routes tab and record your first loop — keep it short, walk or run it once, and you're ready to surge.",
+                gotItAction: {
+                    hasSeenOnboarding = true
+                    selectedTab = routesTab
+                    lastValidTab = routesTab
+                }
             )
             .padding(.horizontal, 24)
             // Downward arrow centered on screen — points to the bolt (middle tab)
